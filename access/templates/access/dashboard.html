@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}My access · bookish-lamp{% endblock %}
+{% block content %}
+<div class="grid gap-6 md:grid-cols-2">
+  <section>
+    <h1 class="text-xl font-semibold mb-1">My access</h1>
+    <p class="text-sm text-slate-500 mb-4">
+      Role: <span class="font-medium">{{ user.role|default:"—" }}</span> ·
+      Tier: <span class="font-medium">{{ user.tier|default:"—" }}</span>
+    </p>
+
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-2">My qualifications</h2>
+    <div class="space-y-2">
+      {% for q in quals %}
+        <div class="flex items-center justify-between rounded-lg border bg-white px-4 py-3 shadow-sm">
+          <div>
+            <div class="font-medium">{{ q.grant.qualification.name }}</div>
+            <div class="text-xs text-slate-500">
+              {% if q.grant.expires_at %}Expires {{ q.grant.expires_at|date:"Y-m-d" }}{% else %}No expiry{% endif %}
+            </div>
+          </div>
+          {% include "access/_status_badge.html" with status=q.status %}
+        </div>
+      {% empty %}
+        <p class="text-sm text-slate-500">No qualifications yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-2">
+      Effective permissions <span class="font-normal normal-case text-slate-400">(computed at read time)</span>
+    </h2>
+    <div class="rounded-lg border bg-white p-4 shadow-sm">
+      {% for code in permissions %}
+        <span class="inline-block rounded bg-slate-100 px-2 py-1 text-xs font-mono mb-1 mr-1">{{ code }}</span>
+      {% empty %}
+        <p class="text-sm text-slate-500">No permissions. (Deny-by-default.)</p>
+      {% endfor %}
+    </div>
+    <p class="mt-2 text-xs text-slate-400">
+      = role baseline ∪ permissions from currently-valid qualifications.
+    </p>
+  </section>
+</div>
+{% endblock %}

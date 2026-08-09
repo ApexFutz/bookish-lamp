@@ -1,0 +1,7 @@
+Django>=5.1,<5.2
+python-dotenv>=1.0
+whitenoise>=6.6
+# Postgres driver for production (managed Postgres). Prototype runs on SQLite.
+psycopg[binary]>=3.2
+# dj-database-url parses DATABASE_URL for the PaaS deploy.
+dj-database-url>=2.2

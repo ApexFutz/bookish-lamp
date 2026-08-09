@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Log in · bookish-lamp{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-sm">
+  <h1 class="text-xl font-semibold mb-4">Log in</h1>
+  <form method="post" class="space-y-3 rounded-lg border bg-white p-5 shadow-sm">
+    {% csrf_token %}
+    {% if form.errors %}
+      <p class="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+        Invalid credentials. Please try again.</p>
+    {% endif %}
+    <div>
+      <label class="block text-sm font-medium mb-1" for="id_username">Username</label>
+      <input id="id_username" name="username" autofocus required
+             class="w-full rounded border-slate-300 border px-3 py-2 text-base">
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1" for="id_password">Password</label>
+      <input id="id_password" name="password" type="password" required
+             class="w-full rounded border-slate-300 border px-3 py-2 text-base">
+    </div>
+    <button class="w-full rounded bg-sky-600 px-3 py-2 text-white font-medium hover:bg-sky-700">
+      Log in</button>
+  </form>
+  <p class="mt-3 text-xs text-slate-500">Demo: manager / lead / picker — password <code>demo12345</code></p>
+</div>
+{% endblock %}

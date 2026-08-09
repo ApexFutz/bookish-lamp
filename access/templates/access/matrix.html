@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Skills matrix · bookish-lamp{% endblock %}
+{% block content %}
+<h1 class="text-xl font-semibold mb-1">Skills matrix</h1>
+<p class="text-sm text-slate-500 mb-4">Live status — validity is derived at read time, never a stale flag.</p>
+
+<div class="overflow-x-auto rounded-lg border bg-white shadow-sm">
+  <table class="min-w-full text-sm">
+    <thead>
+      <tr class="border-b bg-slate-50 text-left">
+        <th class="sticky left-0 bg-slate-50 px-4 py-3 font-semibold">Worker</th>
+        {% for q in qualifications %}
+          <th class="px-4 py-3 font-semibold whitespace-nowrap">{{ q.name }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr class="border-b last:border-0">
+          <td class="sticky left-0 bg-white px-4 py-3 whitespace-nowrap">
+            <div class="font-medium">{{ row.user }}</div>
+            <div class="text-xs text-slate-500">{{ row.user.role|default:"—" }} · {{ row.user.tier|default:"—" }}</div>
+          </td>
+          {% for cell in row.cells %}
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                {% include "access/_status_badge.html" with status=cell.status %}
+                {% if can_grant_any and cell.status != "valid" %}
+                  <form method="post" action="{% url 'grant_qualification' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="user_id" value="{{ row.user.id }}">
+                    <input type="hidden" name="qualification_id" value="{{ cell.qual.id }}">
+                    <button class="rounded border border-sky-300 px-2 py-0.5 text-xs text-sky-700 hover:bg-sky-50">
+                      Grant</button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
