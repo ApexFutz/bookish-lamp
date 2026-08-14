@@ -89,7 +89,7 @@ else:
 AUTH_USER_MODEL = "access.User"
 
 LOGIN_URL = "login"
-LOGIN_REDIRECT_URL = "dashboard"
+LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "login"
 
 AUTH_PASSWORD_VALIDATORS = [

@@ -48,21 +48,37 @@ class Command(BaseCommand):
         )
         pallet.granted_permissions.set([perms["equipment.operate.pallet_jack"]])
 
-        # Users
-        def make_user(username, first, role, tier, superuser=False):
-            u, created = User.objects.get_or_create(
-                username=username,
-                defaults={"first_name": first, "role": role, "tier": tier},
+        # Users who log in (supervisors/managers)
+        def make_login_user(username, first, role, tier, shift="", superuser=False):
+            u, _ = User.objects.get_or_create(
+                username=username, defaults={"first_name": first}
             )
-            u.role, u.tier = role, tier
+            u.first_name, u.role, u.tier, u.shift = first, role, tier, shift
             if superuser:
                 u.is_staff = u.is_superuser = True
             u.set_password("demo12345")
             u.save()
             return u
 
-        make_user("picker", "Pat", picker_role, tiers["picker"])
-        make_user("lead", "Lee", lead_role, tiers["lead"])
-        make_user("manager", "Morgan", mgr_role, tiers["manager"], superuser=True)
+        make_login_user("picker", "Pat", picker_role, tiers["picker"], shift=User.Shift.FIRST)
+        make_login_user("lead", "Lee", lead_role, tiers["lead"], shift=User.Shift.FIRST)
+        make_login_user("manager", "Morgan", mgr_role, tiers["manager"], superuser=True)
+
+        # Roster employees (no login) split across shifts
+        roster = [
+            ("Alex Rivera", User.Shift.FIRST),
+            ("Sam Chen", User.Shift.FIRST),
+            ("Jordan Blake", User.Shift.SECOND),
+            ("Casey Kim", User.Shift.SECOND),
+        ]
+        for name, shift in roster:
+            username = name.lower().replace(" ", "-")
+            u, created = User.objects.get_or_create(
+                username=username,
+                defaults={"first_name": name, "role": picker_role, "tier": tiers["picker"], "shift": shift},
+            )
+            if created:
+                u.set_unusable_password()
+                u.save()
 
         self.stdout.write(self.style.SUCCESS("Seeded demo data. Logins: manager / lead / picker (demo12345)."))

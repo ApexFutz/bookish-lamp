@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Employees · bookish-lamp{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center gap-2 text-sm text-slate-500">
+  <a href="{% url 'home' %}" class="hover:text-sky-600">Home</a> <span>/</span>
+  <span class="text-slate-700 font-medium">Employees</span>
+</div>
+<h1 class="text-xl font-semibold mb-4">Employees</h1>
+<div class="grid gap-4 sm:grid-cols-2">
+  {% for s in shifts %}
+    <a href="{% url 'shift_detail' shift=s.value %}"
+       class="block rounded-xl border bg-white p-6 shadow-sm hover:shadow-md hover:border-sky-300 transition">
+      <div class="text-lg font-semibold">{{ s.label }}</div>
+      <p class="text-sm text-slate-500">{{ s.count }} employee{{ s.count|pluralize }}</p>
+    </a>
+  {% endfor %}
+</div>
+{% endblock %}

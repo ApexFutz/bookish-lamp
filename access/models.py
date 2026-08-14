@@ -71,8 +71,16 @@ class Qualification(models.Model):
 
 
 class User(AbstractUser):
-    """Warehouse user. Carries a job-function role and an authorization tier."""
+    """Warehouse user / employee. Carries a shift, a job-function role, and an authorization tier.
 
+    Floor employees are roster entries (no usable password); supervisors/managers log in.
+    """
+
+    class Shift(models.TextChoices):
+        FIRST = "first", "First Shift"
+        SECOND = "second", "Second Shift"
+
+    shift = models.CharField(max_length=10, choices=Shift.choices, blank=True)
     tier = models.ForeignKey(
         Tier, null=True, blank=True, on_delete=models.PROTECT, related_name="users"
     )

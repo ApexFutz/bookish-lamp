@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Equipment · bookish-lamp{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center gap-2 text-sm text-slate-500">
+  <a href="{% url 'home' %}" class="hover:text-sky-600">Home</a> <span>/</span>
+  <span class="text-slate-700 font-medium">Equipment</span>
+</div>
+<h1 class="text-xl font-semibold mb-4">Equipment</h1>
+
+{% if can_manage %}
+<form method="post" action="{% url 'equipment_add' %}" class="mb-4 flex gap-2">
+  {% csrf_token %}
+  <input name="name" placeholder="New equipment name" required
+         class="flex-1 rounded border border-slate-300 px-3 py-2 text-base">
+  <button class="rounded bg-sky-600 px-4 py-2 text-white font-medium hover:bg-sky-700">Add</button>
+</form>
+{% endif %}
+
+<div class="divide-y rounded-lg border bg-white shadow-sm">
+  {% for eq in equipment %}
+    <div class="flex items-center justify-between px-4 py-3">
+      <a href="{% url 'equipment_detail' pk=eq.pk %}" class="flex-1 font-medium text-sky-700 hover:underline">
+        {{ eq.name }}
+      </a>
+      {% if can_manage %}
+        <form method="post" action="{% url 'equipment_remove' %}"
+              onsubmit="return confirm('Remove {{ eq.name }} and all its training records?');">
+          {% csrf_token %}
+          <input type="hidden" name="equipment_id" value="{{ eq.id }}">
+          <button class="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50">Remove</button>
+        </form>
+      {% endif %}
+    </div>
+  {% empty %}
+    <p class="px-4 py-6 text-sm text-slate-500">No equipment yet.</p>
+  {% endfor %}
+</div>
+{% endblock %}
