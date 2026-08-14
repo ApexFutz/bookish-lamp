@@ -240,6 +240,50 @@ class PermissionGuardTests(TestCase):
         self.assertTrue(Qualification.objects.filter(name="Reach Truck").exists())
 
 
+class RoleAssignmentTests(TestCase):
+    """Assign/change a user's role, tier-gated and audited (issue #15)."""
+
+    def setUp(self):
+        from .models import AccessAuditLog
+
+        self.AccessAuditLog = AccessAuditLog
+        self.t1 = Tier.objects.create(name="Associate", level=1)
+        self.t3 = Tier.objects.create(name="Manager", level=3)
+        Permission.objects.create(code="users.manage")
+        self.mgr_role = Role.objects.create(name="Manager")
+        self.mgr_role.baseline_permissions.set(list(Permission.objects.all()))
+        self.picker_role = Role.objects.create(name="Picker")
+        self.new_role = Role.objects.create(name="Shift Lead")
+
+        self.manager = User.objects.create_user("manager", password="pw", tier=self.t3, is_superuser=True, is_staff=True)
+        self.worker = User.objects.create_user("worker", role=self.picker_role, tier=self.t1, shift=User.Shift.FIRST)
+
+    def test_manager_can_change_role_and_it_is_audited(self):
+        self.client.force_login(self.manager)
+        resp = self.client.post("/employees/role/", {"user_id": self.worker.id, "role_id": self.new_role.id})
+        self.assertEqual(resp.status_code, 302)
+        self.worker.refresh_from_db()
+        self.assertEqual(self.worker.role, self.new_role)
+        entry = self.AccessAuditLog.objects.filter(target=self.worker, action="role.change").first()
+        self.assertIsNotNone(entry)
+        self.assertIn("Shift Lead", entry.detail)
+
+    def test_lower_tier_cannot_change_higher_tier(self):
+        # A tier-1 manager-permission holder cannot change a tier-3 employee.
+        low = User.objects.create_user("low", role=self.mgr_role, tier=self.t1)  # has users.manage but low tier
+        high = User.objects.create_user("high", role=self.picker_role, tier=self.t3, shift=User.Shift.FIRST)
+        self.client.force_login(low)
+        self.client.post("/employees/role/", {"user_id": high.id, "role_id": self.new_role.id})
+        high.refresh_from_db()
+        self.assertEqual(high.role, self.picker_role)  # unchanged
+
+    def test_without_manage_permission_is_403(self):
+        nobody = User.objects.create_user("nobody", role=self.picker_role, tier=self.t3)
+        self.client.force_login(nobody)
+        resp = self.client.post("/employees/role/", {"user_id": self.worker.id, "role_id": self.new_role.id})
+        self.assertEqual(resp.status_code, 403)
+
+
 class LoginLockoutTests(TestCase):
     """Login rate limiting / lockout via django-axes (issue #11)."""
 

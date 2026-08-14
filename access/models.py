@@ -267,3 +267,30 @@ class EmployeeTraining(models.Model):
 
     def __str__(self) -> str:
         return f"{self.employee} · {self.qualification} ({self.status})"
+
+
+class AccessAuditLog(models.Model):
+    """Append-only record of access changes (issue #23); written by role/grant actions.
+
+    There is intentionally no update path — entries are only ever created and read.
+    """
+
+    actor = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="audit_actions"
+    )
+    target = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="audit_events"
+    )
+    action = models.CharField(max_length=50, help_text="e.g. role.change, qualification.grant")
+    detail = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    @classmethod
+    def record(cls, actor, target, action, detail=""):
+        return cls.objects.create(actor=actor, target=target, action=action, detail=detail)
+
+    def __str__(self) -> str:
+        return f"{self.created_at:%Y-%m-%d %H:%M} {self.action} {self.target}"

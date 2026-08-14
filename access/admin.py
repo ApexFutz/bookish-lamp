@@ -2,7 +2,16 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import EmployeeTraining, Permission, Qualification, Role, Tier, User, UserQualification
+from .models import (
+    AccessAuditLog,
+    EmployeeTraining,
+    Permission,
+    Qualification,
+    Role,
+    Tier,
+    User,
+    UserQualification,
+)
 
 
 @admin.register(Tier)
@@ -62,3 +71,22 @@ class EmployeeTrainingAdmin(admin.ModelAdmin):
     list_display = ("employee", "qualification", "priority", "status", "created_at", "target_date", "completed_at")
     list_filter = ("priority", "status", "qualification")
     search_fields = ("employee__username", "employee__first_name", "employee__last_name", "qualification__name")
+
+
+@admin.register(AccessAuditLog)
+class AccessAuditLogAdmin(admin.ModelAdmin):
+    """Read-only view of the append-only audit trail."""
+
+    list_display = ("created_at", "action", "actor", "target", "detail")
+    list_filter = ("action",)
+    search_fields = ("actor__username", "target__username", "detail")
+    readonly_fields = ("actor", "target", "action", "detail", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

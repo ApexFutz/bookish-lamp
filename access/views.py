@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from .models import Qualification, User, UserQualification
+from .models import AccessAuditLog, Qualification, Role, User, UserQualification
 from .services import can_grant, can_manage, effective_permission_codes, require_permission
 
 # Permission code that gates roster/equipment management (issue #13).
@@ -68,7 +68,7 @@ def shift_detail(request, shift):
     if shift is None:
         messages.error(request, "Unknown shift.")
         return redirect("employees_index")
-    employees = User.objects.filter(shift=shift).order_by("first_name", "username")
+    employees = User.objects.filter(shift=shift).select_related("role").order_by("first_name", "username")
     return render(
         request,
         "access/shift_detail.html",
@@ -76,6 +76,7 @@ def shift_detail(request, shift):
             "shift": shift,
             "label": User.Shift(shift).label,
             "employees": employees,
+            "roles": Role.objects.order_by("name"),
             "can_manage": can_manage(request.user),
         },
     )
@@ -119,6 +120,37 @@ def employee_remove(request):
         employee.delete()
         messages.success(request, f"Removed {name}.")
     return redirect("shift_detail", shift=shift) if shift else redirect("employees_index")
+
+
+@login_required
+@require_POST
+@require_permission(MANAGE)
+def role_assign(request):
+    """Assign/change an employee's job-function role. Tier-gated and audited (issue #15)."""
+    employee = get_object_or_404(User, pk=request.POST.get("user_id"))
+    shift = _valid_shift(employee.shift) or ""
+    dest = redirect("shift_detail", shift=shift) if shift else redirect("employees_index")
+
+    # Tier rule: you may only change employees at or below your own authorization tier.
+    if not can_grant(request.user, employee):
+        messages.error(request, "You can only change employees at or below your own tier.")
+        return dest
+
+    role_id = request.POST.get("role_id") or ""
+    old_role = employee.role.name if employee.role else "—"
+    if role_id:
+        employee.role = get_object_or_404(Role, pk=role_id)
+    else:
+        employee.role = None
+    employee.save(update_fields=["role"])
+
+    new_role = employee.role.name if employee.role else "—"
+    AccessAuditLog.record(
+        actor=request.user, target=employee, action="role.change",
+        detail=f"{old_role} → {new_role}",
+    )
+    messages.success(request, f"Updated {employee}'s role: {old_role} → {new_role}.")
+    return dest
 
 
 # ---------------------------------------------------------------------------- equipment

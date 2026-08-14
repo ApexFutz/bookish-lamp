@@ -25,14 +25,29 @@
         <div class="font-medium">{{ e }}</div>
         <div class="text-xs text-slate-500">{{ e.role|default:"—" }}{% if e.tier %} · {{ e.tier.name }}{% endif %}</div>
       </div>
-      {% if can_manage and not e.is_superuser and e != user %}
-        <form method="post" action="{% url 'employee_remove' %}"
-              onsubmit="return confirm('Remove {{ e }}?');">
-          {% csrf_token %}
-          <input type="hidden" name="user_id" value="{{ e.id }}">
-          <button class="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50">Remove</button>
-        </form>
-      {% endif %}
+      <div class="flex items-center gap-2">
+        {% if can_manage %}
+          <form method="post" action="{% url 'role_assign' %}" class="flex items-center gap-1">
+            {% csrf_token %}
+            <input type="hidden" name="user_id" value="{{ e.id }}">
+            <select name="role_id" class="rounded border border-slate-300 px-2 py-1 text-sm">
+              <option value="">— No role —</option>
+              {% for r in roles %}
+                <option value="{{ r.id }}" {% if e.role_id == r.id %}selected{% endif %}>{{ r.name }}</option>
+              {% endfor %}
+            </select>
+            <button class="rounded border border-sky-300 px-2 py-1 text-sm text-sky-700 hover:bg-sky-50">Set role</button>
+          </form>
+        {% endif %}
+        {% if can_manage and not e.is_superuser and e != user %}
+          <form method="post" action="{% url 'employee_remove' %}"
+                onsubmit="return confirm('Remove {{ e }}?');">
+            {% csrf_token %}
+            <input type="hidden" name="user_id" value="{{ e.id }}">
+            <button class="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50">Remove</button>
+          </form>
+        {% endif %}
+      </div>
     </div>
   {% empty %}
     <p class="px-4 py-6 text-sm text-slate-500">No employees on this shift yet.</p>
