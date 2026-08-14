@@ -7,3 +7,5 @@ psycopg[binary]>=3.2
 dj-database-url>=2.2
 # Login rate limiting / lockout.
 django-axes>=7,<8
+# Linter + formatter (dev). Also run in CI.
+ruff>=0.16

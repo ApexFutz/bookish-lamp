@@ -1,4 +1,5 @@
 """Django admin — a big slice of the back-office for free (a key reason Django was chosen)."""
+
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
@@ -51,7 +52,16 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = BaseUserAdmin.fieldsets + (
         ("Warehouse access", {"fields": ("tier", "role", "shift", "employee_number")}),
     )
-    list_display = ("username", "first_name", "last_name", "role", "tier", "shift", "employee_number", "is_staff")
+    list_display = (
+        "username",
+        "first_name",
+        "last_name",
+        "role",
+        "tier",
+        "shift",
+        "employee_number",
+        "is_staff",
+    )
     list_filter = BaseUserAdmin.list_filter + ("tier", "role", "shift")
 
 
@@ -68,9 +78,22 @@ class UserQualificationAdmin(admin.ModelAdmin):
 
 @admin.register(EmployeeTraining)
 class EmployeeTrainingAdmin(admin.ModelAdmin):
-    list_display = ("employee", "qualification", "priority", "status", "created_at", "target_date", "completed_at")
+    list_display = (
+        "employee",
+        "qualification",
+        "priority",
+        "status",
+        "created_at",
+        "target_date",
+        "completed_at",
+    )
     list_filter = ("priority", "status", "qualification")
-    search_fields = ("employee__username", "employee__first_name", "employee__last_name", "qualification__name")
+    search_fields = (
+        "employee__username",
+        "employee__first_name",
+        "employee__last_name",
+        "qualification__name",
+    )
 
 
 @admin.register(AccessAuditLog)

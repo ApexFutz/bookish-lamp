@@ -4,6 +4,7 @@ Safety principle baked in here: a qualification's *validity* is derived at read 
 its expiry/revocation fields (see ``UserQualification.is_valid``) — never from a flag that a
 background job has to flip. That makes "who is authorized right now" impossible to leave stale.
 """
+
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -240,7 +241,9 @@ class EmployeeTraining(models.Model):
         (STATUS_COMPLETED, "Completed"),
     ]
 
-    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name="training_requirements")
+    employee = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="training_requirements"
+    )
     qualification = models.ForeignKey(
         Qualification,
         on_delete=models.CASCADE,

@@ -9,6 +9,7 @@ Navigation follows the requested flow:
 "Trained on equipment" == a currently-valid qualification grant, so add/remove here reuses the
 read-time fail-safe engine in services.py. Mutations are permission-gated (can_manage / can_grant).
 """
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
@@ -68,7 +69,9 @@ def shift_detail(request, shift):
     if shift is None:
         messages.error(request, "Unknown shift.")
         return redirect("employees_index")
-    employees = User.objects.filter(shift=shift).select_related("role").order_by("first_name", "username")
+    employees = (
+        User.objects.filter(shift=shift).select_related("role").order_by("first_name", "username")
+    )
     return render(
         request,
         "access/shift_detail.html",
@@ -146,7 +149,9 @@ def role_assign(request):
 
     new_role = employee.role.name if employee.role else "—"
     AccessAuditLog.record(
-        actor=request.user, target=employee, action="role.change",
+        actor=request.user,
+        target=employee,
+        action="role.change",
         detail=f"{old_role} → {new_role}",
     )
     messages.success(request, f"Updated {employee}'s role: {old_role} → {new_role}.")
@@ -160,7 +165,10 @@ def equipment_index(request):
     return render(
         request,
         "access/equipment_index.html",
-        {"equipment": Qualification.objects.order_by("name"), "can_manage": can_manage(request.user)},
+        {
+            "equipment": Qualification.objects.order_by("name"),
+            "can_manage": can_manage(request.user),
+        },
     )
 
 
@@ -172,7 +180,9 @@ def equipment_add(request):
     if not name:
         messages.error(request, "Please enter an equipment name.")
         return redirect("equipment_index")
-    Qualification.objects.create(name=name, code=_unique(Qualification, "code", slugify(name) or "equipment"))
+    Qualification.objects.create(
+        name=name, code=_unique(Qualification, "code", slugify(name) or "equipment")
+    )
     messages.success(request, f"Added equipment “{name}”.")
     return redirect("equipment_index")
 
@@ -261,7 +271,10 @@ def training_remove(request):
     )
     if updated:
         AccessAuditLog.record(
-            actor=request.user, target=employee, action="qualification.revoke", detail=equipment.name
+            actor=request.user,
+            target=employee,
+            action="qualification.revoke",
+            detail=equipment.name,
         )
     messages.success(request, f"Removed {employee}'s training on {equipment.name}.")
     return redirect("equipment_detail", pk=equipment.pk)
@@ -276,7 +289,12 @@ def matrix(request):
     for g in UserQualification.objects.select_related("qualification"):
         cell[(g.user_id, g.qualification_id)] = g.status()
     rows = [
-        {"user": u, "cells": [{"qual": q, "status": cell.get((u.id, q.id), "none")} for q in qualifications]}
+        {
+            "user": u,
+            "cells": [
+                {"qual": q, "status": cell.get((u.id, q.id), "none")} for q in qualifications
+            ],
+        }
         for u in users
     ]
     return render(request, "access/matrix.html", {"qualifications": qualifications, "rows": rows})

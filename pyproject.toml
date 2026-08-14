@@ -1,0 +1,10 @@
+[tool.ruff]
+# Linter + formatter config (issue #2). Ruff replaces black + isort + flake8.
+line-length = 100
+target-version = "py311"
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+# E/W = pycodestyle, F = pyflakes, I = isort, UP = pyupgrade, B = bugbear.
+select = ["E", "W", "F", "I", "UP", "B"]
+ignore = ["E501"]  # line length is handled by the formatter, not enforced as a lint error

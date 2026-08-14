@@ -3,8 +3,9 @@
 Config is environment-driven (issue #6). Prototype defaults to SQLite; production sets
 DATABASE_URL to the client-owned managed Postgres.
 """
-from pathlib import Path
+
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -31,7 +32,9 @@ if not SECRET_KEY:
     else:
         raise RuntimeError("SECRET_KEY environment variable is required when DEBUG=False")
 
-ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
+ALLOWED_HOSTS = [
+    h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -142,7 +145,8 @@ CSRF_COOKIE_SECURE = not DEBUG
 # Dev prints emails to the console; production sets SMTP via env vars.
 EMAIL_BACKEND = os.getenv(
     "EMAIL_BACKEND",
-    "django.core.mail.backends.console.EmailBackend" if DEBUG
+    "django.core.mail.backends.console.EmailBackend"
+    if DEBUG
     else "django.core.mail.backends.smtp.EmailBackend",
 )
 EMAIL_HOST = os.getenv("EMAIL_HOST", "")

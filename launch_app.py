@@ -1,5 +1,4 @@
 import subprocess
-import sys
 import time
 import webbrowser
 from pathlib import Path
@@ -12,6 +11,7 @@ SERVER_URL = "http://127.0.0.1:8000"
 def ensure_server_running():
     try:
         import urllib.request
+
         with urllib.request.urlopen(SERVER_URL, timeout=2):
             return True
     except Exception:

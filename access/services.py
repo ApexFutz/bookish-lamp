@@ -3,6 +3,7 @@
 Every authorization question in the app should route through here. It is deliberately
 deny-by-default: any error, missing data, or unknown state resolves to *denied*.
 """
+
 from __future__ import annotations
 
 from functools import wraps

@@ -2,6 +2,7 @@
 
 These guard the read-time, fail-safe behavior — the part that must never regress.
 """
+
 from django.test import TestCase
 from django.utils import timezone
 
@@ -27,7 +28,9 @@ class AuthorizationCoreTests(TestCase):
         self.manager = User.objects.create_user("manager", tier=self.t3)
 
     def _grant(self, **kwargs):
-        return UserQualification.objects.create(user=self.picker, qualification=self.forklift, **kwargs)
+        return UserQualification.objects.create(
+            user=self.picker, qualification=self.forklift, **kwargs
+        )
 
     def test_baseline_only_without_qualification(self):
         self.assertEqual(effective_permission_codes(self.picker), {"orders.pick"})
@@ -67,8 +70,12 @@ class NavigationFlowTests(TestCase):
 
     def setUp(self):
         self.t3 = Tier.objects.create(name="Manager", level=3)
-        self.manager = User.objects.create_user("manager", password="pw", tier=self.t3, is_superuser=True, is_staff=True)
-        self.forklift = Qualification.objects.create(name="Forklift", code="forklift", default_valid_days=365)
+        self.manager = User.objects.create_user(
+            "manager", password="pw", tier=self.t3, is_superuser=True, is_staff=True
+        )
+        self.forklift = Qualification.objects.create(
+            name="Forklift", code="forklift", default_valid_days=365
+        )
         self.client.force_login(self.manager)
 
     def test_add_and_remove_employee_on_shift(self):
@@ -93,7 +100,9 @@ class NavigationFlowTests(TestCase):
         uq = UserQualification.objects.get(user=emp, qualification=self.forklift)
         self.assertTrue(uq.is_valid())
         # Remove training -> revoked -> invalid at read time
-        self.client.post("/equipment/untrain/", {"equipment_id": self.forklift.id, "user_id": emp.id})
+        self.client.post(
+            "/equipment/untrain/", {"equipment_id": self.forklift.id, "user_id": emp.id}
+        )
         uq.refresh_from_db()
         self.assertFalse(uq.is_valid())
 
@@ -123,9 +132,14 @@ class SmokeTests(TestCase):
 
     def test_all_key_pages_load(self):
         urls = [
-            "/", "/me/", "/matrix/",
-            "/employees/", f"/employees/{User.Shift.FIRST}/", f"/employees/{User.Shift.SECOND}/",
-            "/equipment/", f"/equipment/{self.equipment.pk}/",
+            "/",
+            "/me/",
+            "/matrix/",
+            "/employees/",
+            f"/employees/{User.Shift.FIRST}/",
+            f"/employees/{User.Shift.SECOND}/",
+            "/equipment/",
+            f"/equipment/{self.equipment.pk}/",
         ]
         for url in urls:
             with self.subTest(url=url):
@@ -168,7 +182,11 @@ class PasswordLifecycleTests(TestCase):
         self.client.force_login(user)
         resp = self.client.post(
             "/password/change/",
-            {"old_password": "OldPass!234", "new_password1": "NewPass!234", "new_password2": "NewPass!234"},
+            {
+                "old_password": "OldPass!234",
+                "new_password1": "NewPass!234",
+                "new_password2": "NewPass!234",
+            },
         )
         self.assertEqual(resp.status_code, 302)
         user.refresh_from_db()
@@ -179,7 +197,11 @@ class PasswordLifecycleTests(TestCase):
         self.client.force_login(user)
         resp = self.client.post(
             "/password/change/",
-            {"old_password": "WRONG", "new_password1": "NewPass!234", "new_password2": "NewPass!234"},
+            {
+                "old_password": "WRONG",
+                "new_password1": "NewPass!234",
+                "new_password2": "NewPass!234",
+            },
         )
         self.assertEqual(resp.status_code, 200)  # re-rendered with errors
         user.refresh_from_db()
@@ -224,7 +246,9 @@ class PermissionGuardTests(TestCase):
         self.picker_role.baseline_permissions.set([pick])
         self.mgr_role = Role.objects.create(name="Manager")
         self.mgr_role.baseline_permissions.set([manage])
-        self.picker = User.objects.create_user("picker", password="pw", role=self.picker_role, tier=self.t1)
+        self.picker = User.objects.create_user(
+            "picker", password="pw", role=self.picker_role, tier=self.t1
+        )
         self.mgr = User.objects.create_user("mgr", password="pw", role=self.mgr_role, tier=self.t3)
 
     def test_denies_user_without_permission(self):
@@ -255,12 +279,18 @@ class RoleAssignmentTests(TestCase):
         self.picker_role = Role.objects.create(name="Picker")
         self.new_role = Role.objects.create(name="Shift Lead")
 
-        self.manager = User.objects.create_user("manager", password="pw", tier=self.t3, is_superuser=True, is_staff=True)
-        self.worker = User.objects.create_user("worker", role=self.picker_role, tier=self.t1, shift=User.Shift.FIRST)
+        self.manager = User.objects.create_user(
+            "manager", password="pw", tier=self.t3, is_superuser=True, is_staff=True
+        )
+        self.worker = User.objects.create_user(
+            "worker", role=self.picker_role, tier=self.t1, shift=User.Shift.FIRST
+        )
 
     def test_manager_can_change_role_and_it_is_audited(self):
         self.client.force_login(self.manager)
-        resp = self.client.post("/employees/role/", {"user_id": self.worker.id, "role_id": self.new_role.id})
+        resp = self.client.post(
+            "/employees/role/", {"user_id": self.worker.id, "role_id": self.new_role.id}
+        )
         self.assertEqual(resp.status_code, 302)
         self.worker.refresh_from_db()
         self.assertEqual(self.worker.role, self.new_role)
@@ -270,8 +300,12 @@ class RoleAssignmentTests(TestCase):
 
     def test_lower_tier_cannot_change_higher_tier(self):
         # A tier-1 manager-permission holder cannot change a tier-3 employee.
-        low = User.objects.create_user("low", role=self.mgr_role, tier=self.t1)  # has users.manage but low tier
-        high = User.objects.create_user("high", role=self.picker_role, tier=self.t3, shift=User.Shift.FIRST)
+        low = User.objects.create_user(
+            "low", role=self.mgr_role, tier=self.t1
+        )  # has users.manage but low tier
+        high = User.objects.create_user(
+            "high", role=self.picker_role, tier=self.t3, shift=User.Shift.FIRST
+        )
         self.client.force_login(low)
         self.client.post("/employees/role/", {"user_id": high.id, "role_id": self.new_role.id})
         high.refresh_from_db()
@@ -280,7 +314,9 @@ class RoleAssignmentTests(TestCase):
     def test_without_manage_permission_is_403(self):
         nobody = User.objects.create_user("nobody", role=self.picker_role, tier=self.t3)
         self.client.force_login(nobody)
-        resp = self.client.post("/employees/role/", {"user_id": self.worker.id, "role_id": self.new_role.id})
+        resp = self.client.post(
+            "/employees/role/", {"user_id": self.worker.id, "role_id": self.new_role.id}
+        )
         self.assertEqual(resp.status_code, 403)
 
 
@@ -306,7 +342,9 @@ class LoginLockoutTests(TestCase):
         for _ in range(self.limit):
             self.client.post("/login/", {"username": "locky", "password": "wrong"})
         # A different username still authenticates (lockout is per-username).
-        resp = self.client.post("/login/", {"username": "other", "password": "RightPass!234"}, follow=True)
+        resp = self.client.post(
+            "/login/", {"username": "other", "password": "RightPass!234"}, follow=True
+        )
         self.assertTrue(resp.context["user"].is_authenticated)
 
 
@@ -325,8 +363,12 @@ class AuditLogTests(TestCase):
     def test_grant_and_revoke_are_audited(self):
         from .models import AccessAuditLog
 
-        self.client.post("/equipment/train/", {"equipment_id": self.forklift.id, "user_id": self.emp.id})
-        self.client.post("/equipment/untrain/", {"equipment_id": self.forklift.id, "user_id": self.emp.id})
+        self.client.post(
+            "/equipment/train/", {"equipment_id": self.forklift.id, "user_id": self.emp.id}
+        )
+        self.client.post(
+            "/equipment/untrain/", {"equipment_id": self.forklift.id, "user_id": self.emp.id}
+        )
 
         actions = list(
             AccessAuditLog.objects.filter(target=self.emp).values_list("action", flat=True)
