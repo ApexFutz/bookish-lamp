@@ -60,3 +60,46 @@ class AuthorizationCoreTests(TestCase):
         # Manager (L3) can grant to picker (L1); picker cannot grant to manager.
         self.assertTrue(can_grant(self.manager, self.picker))
         self.assertFalse(can_grant(self.picker, self.manager))
+
+
+class NavigationFlowTests(TestCase):
+    """Exercises the Employees / Equipment flow the client specified."""
+
+    def setUp(self):
+        self.t3 = Tier.objects.create(name="Manager", level=3)
+        self.manager = User.objects.create_user("manager", password="pw", tier=self.t3, is_superuser=True, is_staff=True)
+        self.forklift = Qualification.objects.create(name="Forklift", code="forklift", default_valid_days=365)
+        self.client.force_login(self.manager)
+
+    def test_add_and_remove_employee_on_shift(self):
+        self.client.post("/employees/add/", {"shift": "first", "name": "New Hire"})
+        emp = User.objects.get(first_name="New Hire")
+        self.assertEqual(emp.shift, "first")
+        self.assertFalse(emp.has_usable_password())  # roster entry, no login
+
+        self.client.post("/employees/remove/", {"user_id": emp.id})
+        self.assertFalse(User.objects.filter(pk=emp.id).exists())
+
+    def test_cannot_remove_manager_or_self(self):
+        self.client.post("/employees/remove/", {"user_id": self.manager.id})
+        self.assertTrue(User.objects.filter(pk=self.manager.id).exists())
+
+    def test_train_and_untrain_reflects_valid_grant(self):
+        emp = User.objects.create_user("emp", shift="first", tier=self.t3)
+        # Trained list starts empty
+        self.assertNotIn(emp.id, {g.user_id for g in UserQualification.objects.all()})
+        # Add training
+        self.client.post("/equipment/train/", {"equipment_id": self.forklift.id, "user_id": emp.id})
+        uq = UserQualification.objects.get(user=emp, qualification=self.forklift)
+        self.assertTrue(uq.is_valid())
+        # Remove training -> revoked -> invalid at read time
+        self.client.post("/equipment/untrain/", {"equipment_id": self.forklift.id, "user_id": emp.id})
+        uq.refresh_from_db()
+        self.assertFalse(uq.is_valid())
+
+    def test_add_remove_equipment(self):
+        self.client.post("/equipment/add/", {"name": "Reach Truck"})
+        self.assertTrue(Qualification.objects.filter(name="Reach Truck").exists())
+        eq = Qualification.objects.get(name="Reach Truck")
+        self.client.post("/equipment/remove/", {"equipment_id": eq.id})
+        self.assertFalse(Qualification.objects.filter(pk=eq.id).exists())

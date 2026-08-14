@@ -61,6 +61,12 @@ class Command(BaseCommand):
         pallet.granted_permissions.set([perms["equipment.operate.pallet_jack"]])
 
         # Users
+        def make_login_user(username, first, role, tier, shift="", superuser=False):
+            u, _ = User.objects.get_or_create(
+                username=username, defaults={"first_name": first}
+            )
+            u.first_name, u.role, u.tier, u.shift = first, role, tier, shift
+
         def make_user(username, first, role, tier, shift="1st", employee_number="", superuser=False):
             u, created = User.objects.get_or_create(
                 username=username,
@@ -81,9 +87,28 @@ class Command(BaseCommand):
             u.save()
             return u
 
-        make_user("picker", "Pat", picker_role, tiers["picker"], "1st", "EMP-101")
-        make_user("lead", "Lee", lead_role, tiers["lead"], "2nd", "EMP-201")
-        make_user("manager", "Morgan", mgr_role, tiers["manager"], "1st", "EMP-301", superuser=True)
+        make_login_user("picker", "Pat", picker_role, tiers["picker"], shift=User.Shift.FIRST)
+        make_login_user("lead", "Lee", lead_role, tiers["lead"], shift=User.Shift.FIRST)
+        make_login_user("manager", "Morgan", mgr_role, tiers["manager"], superuser=True)
+
+        # Roster employees (no login) split across shifts
+        roster = [
+            ("Alex Rivera", User.Shift.FIRST),
+            ("Sam Chen", User.Shift.FIRST),
+            ("Jordan Blake", User.Shift.SECOND),
+            ("Casey Kim", User.Shift.SECOND),
+        ]
+        for name, shift in roster:
+            username = name.lower().replace(" ", "-")
+            u, created = User.objects.get_or_create(
+                username=username,
+                defaults={"first_name": name, "role": picker_role, "tier": tiers["picker"], "shift": shift},
+            )
+            if created:
+                u.set_unusable_password()
+                u.save()
+
+        # Additional demo users (login-capable)
         make_user("foreman", "Frank", foreman_role, tiers["lead"], "1st", "EMP-110")
         make_user("admin", "Ava", admin_role, tiers["manager"], "2nd", "EMP-220")
         make_user("safety", "Sam", safety_role, tiers["lead"], "1st", "EMP-111")

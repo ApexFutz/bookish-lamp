@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ equipment.name }} · bookish-lamp{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center gap-2 text-sm text-slate-500">
+  <a href="{% url 'home' %}" class="hover:text-sky-600">Home</a> <span>/</span>
+  <a href="{% url 'equipment_index' %}" class="hover:text-sky-600">Equipment</a> <span>/</span>
+  <span class="text-slate-700 font-medium">{{ equipment.name }}</span>
+</div>
+<h1 class="text-xl font-semibold mb-1">{{ equipment.name }}</h1>
+<p class="text-sm text-slate-500 mb-4">Employees trained on this equipment (valid certifications only).</p>
+
+{% if can_manage %}
+<form method="post" action="{% url 'training_add' %}" class="mb-4 flex gap-2">
+  {% csrf_token %}
+  <input type="hidden" name="equipment_id" value="{{ equipment.id }}">
+  <select name="user_id" required class="flex-1 rounded border border-slate-300 px-3 py-2 text-base">
+    <option value="" disabled selected>Add a trained employee…</option>
+    {% for c in candidates %}
+      <option value="{{ c.id }}">{{ c }}{% if c.shift %} — {{ c.get_shift_display }}{% endif %}</option>
+    {% endfor %}
+  </select>
+  <button class="rounded bg-sky-600 px-4 py-2 text-white font-medium hover:bg-sky-700">Add</button>
+</form>
+{% endif %}
+
+<div class="divide-y rounded-lg border bg-white shadow-sm">
+  {% for g in trained %}
+    <div class="flex items-center justify-between px-4 py-3">
+      <div>
+        <div class="font-medium">{{ g.user }}</div>
+        <div class="text-xs text-slate-500">
+          {% if g.expires_at %}Expires {{ g.expires_at|date:"Y-m-d" }}{% else %}No expiry{% endif %}
+          {% if g.granted_by %} · added by {{ g.granted_by }}{% endif %}
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        {% include "access/_status_badge.html" with status=g.status %}
+        {% if can_manage %}
+          <form method="post" action="{% url 'training_remove' %}">
+            {% csrf_token %}
+            <input type="hidden" name="equipment_id" value="{{ equipment.id }}">
+            <input type="hidden" name="user_id" value="{{ g.user.id }}">
+            <button class="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50">Remove</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  {% empty %}
+    <p class="px-4 py-6 text-sm text-slate-500">No employees trained on this equipment yet.</p>
+  {% endfor %}
+</div>
+{% endblock %}

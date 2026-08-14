@@ -53,6 +53,16 @@ def has_permission(user: User, permission_code: str, at=None) -> bool:
         return False
 
 
+def can_manage(user: User) -> bool:
+    """May this user manage the roster/equipment? Fail-safe: default no."""
+    try:
+        if user is None or not user.is_authenticated:
+            return False
+        return bool(user.is_superuser) or has_permission(user, "users.manage")
+    except Exception:
+        return False
+
+
 def can_grant(granter: User, target_user: User) -> bool:
     """Tier rule (#13): a user may only grant at or below their own tier level.
 
