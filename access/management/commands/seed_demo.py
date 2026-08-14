@@ -66,6 +66,11 @@ class Command(BaseCommand):
                 username=username, defaults={"first_name": first}
             )
             u.first_name, u.role, u.tier, u.shift = first, role, tier, shift
+            if superuser:
+                u.is_staff = u.is_superuser = True
+            u.set_password("demo12345")
+            u.save()
+            return u
 
         def make_user(username, first, role, tier, shift="1st", employee_number="", superuser=False):
             u, created = User.objects.get_or_create(
