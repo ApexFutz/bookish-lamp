@@ -9,7 +9,9 @@ import os
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
+# override=True so the project's .env is authoritative for local dev, even if a stray
+# variable of the same name lingers in the OS environment.
+load_dotenv(BASE_DIR / ".env", override=True)
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -106,9 +108,16 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# Manifest (hashed, cache-busted) storage only in production; in DEBUG use the plain
+# storage so the admin's {% static %} assets work without running collectstatic.
+_staticfiles_backend = (
+    "django.contrib.staticfiles.storage.StaticFilesStorage"
+    if DEBUG
+    else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+)
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    "staticfiles": {"BACKEND": _staticfiles_backend},
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

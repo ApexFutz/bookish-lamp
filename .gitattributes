@@ -1,0 +1,10 @@
+# Normalize line endings so cross-platform commits don't churn (stops CRLF/LF warnings).
+* text=auto eol=lf
+
+# Binary files git should never try to normalize.
+*.png binary
+*.jpg binary
+*.ico binary
+*.exe binary
+*.pyz binary
+*.zip binary

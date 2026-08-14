@@ -72,9 +72,9 @@ class NavigationFlowTests(TestCase):
         self.client.force_login(self.manager)
 
     def test_add_and_remove_employee_on_shift(self):
-        self.client.post("/employees/add/", {"shift": "first", "name": "New Hire"})
+        self.client.post("/employees/add/", {"shift": User.Shift.FIRST, "name": "New Hire"})
         emp = User.objects.get(first_name="New Hire")
-        self.assertEqual(emp.shift, "first")
+        self.assertEqual(emp.shift, User.Shift.FIRST)
         self.assertFalse(emp.has_usable_password())  # roster entry, no login
 
         self.client.post("/employees/remove/", {"user_id": emp.id})
@@ -85,7 +85,7 @@ class NavigationFlowTests(TestCase):
         self.assertTrue(User.objects.filter(pk=self.manager.id).exists())
 
     def test_train_and_untrain_reflects_valid_grant(self):
-        emp = User.objects.create_user("emp", shift="first", tier=self.t3)
+        emp = User.objects.create_user("emp", shift=User.Shift.FIRST, tier=self.t3)
         # Trained list starts empty
         self.assertNotIn(emp.id, {g.user_id for g in UserQualification.objects.all()})
         # Add training
@@ -103,3 +103,34 @@ class NavigationFlowTests(TestCase):
         eq = Qualification.objects.get(name="Reach Truck")
         self.client.post("/equipment/remove/", {"equipment_id": eq.id})
         self.assertFalse(Qualification.objects.filter(pk=eq.id).exists())
+
+
+class SmokeTests(TestCase):
+    """Stability guard: every key page must load for a logged-in manager.
+
+    This is the regression that would have caught the disconnected Employees/Equipment
+    routes — it renders each template, so a commented-out URL or a NoReverseMatch fails here.
+    """
+
+    def setUp(self):
+        self.t3 = Tier.objects.create(name="Manager", level=3)
+        self.manager = User.objects.create_user(
+            "manager", password="pw", tier=self.t3, is_superuser=True, is_staff=True
+        )
+        self.equipment = Qualification.objects.create(name="Forklift", code="forklift")
+        User.objects.create_user("floor", shift=User.Shift.FIRST, tier=self.t3)
+        self.client.force_login(self.manager)
+
+    def test_all_key_pages_load(self):
+        urls = [
+            "/", "/me/", "/matrix/",
+            "/employees/", f"/employees/{User.Shift.FIRST}/", f"/employees/{User.Shift.SECOND}/",
+            "/equipment/", f"/equipment/{self.equipment.pk}/",
+        ]
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_login_page_loads_anonymously(self):
+        self.client.logout()
+        self.assertEqual(self.client.get("/login/").status_code, 200)

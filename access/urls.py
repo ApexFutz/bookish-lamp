@@ -6,16 +6,18 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("me/", views.dashboard, name="dashboard"),
     path("matrix/", views.matrix, name="matrix"),
-    # path("employees/", views.employee_directory, name="employee_directory"),  # TODO: implement
-    # path("equipment/", views.equipment_directory, name="equipment_directory"),  # TODO: implement
-    # path("equipment/add/", views.add_equipment, name="add_equipment"),  # TODO: implement
-    # path("equipment/remove/", views.remove_equipment, name="remove_equipment"),  # TODO: implement
-    # path("training/", views.training_queue, name="training_queue"),  # TODO: implement
-    # path("training/add/", views.add_training_requirement, name="add_training_requirement"),  # TODO: implement
-    # path("training/complete/", views.complete_training, name="complete_training"),  # TODO: implement
-    # path("roster/", views.roster, name="roster"),  # TODO: implement
-    # path("roster/create/", views.create_employee, name="create_employee"),  # TODO: implement
-    # path("roster/delete/", views.delete_employee, name="delete_employee"),  # TODO: implement
-    # path("roster/recertify/", views.update_recertification, name="update_recertification"),  # TODO: implement
-    # path("grant/", views.grant_qualification, name="grant_qualification"),  # TODO: implement
+
+    # Employees (specific routes before the <shift> catch-all)
+    path("employees/", views.employees_index, name="employees_index"),
+    path("employees/add/", views.employee_add, name="employee_add"),
+    path("employees/remove/", views.employee_remove, name="employee_remove"),
+    path("employees/<str:shift>/", views.shift_detail, name="shift_detail"),
+
+    # Equipment
+    path("equipment/", views.equipment_index, name="equipment_index"),
+    path("equipment/add/", views.equipment_add, name="equipment_add"),
+    path("equipment/remove/", views.equipment_remove, name="equipment_remove"),
+    path("equipment/<int:pk>/", views.equipment_detail, name="equipment_detail"),
+    path("equipment/train/", views.training_add, name="training_add"),
+    path("equipment/untrain/", views.training_remove, name="training_remove"),
 ]

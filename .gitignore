@@ -17,6 +17,11 @@ db.sqlite3-journal
 .env.*
 !.env.example
 
+# PyInstaller build artifacts (never commit binaries — issue #2 owns packaging)
+/build/
+/dist/
+*.spec
+
 # Editor / OS
 .vscode/
 .idea/

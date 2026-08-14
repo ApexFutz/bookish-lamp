@@ -3,6 +3,18 @@
 {% block content %}
 <h1 class="text-xl font-semibold mb-4">Welcome to bookish-lamp</h1>
 <div class="grid gap-4 sm:grid-cols-2">
+  <a href="{% url 'employees_index' %}"
+     class="block rounded-xl border bg-white p-6 shadow-sm hover:shadow-md hover:border-sky-300 transition">
+    <div class="text-3xl mb-2">👷</div>
+    <div class="text-lg font-semibold">Employees</div>
+    <p class="text-sm text-slate-500">First &amp; second shift rosters — add or remove employees.</p>
+  </a>
+  <a href="{% url 'equipment_index' %}"
+     class="block rounded-xl border bg-white p-6 shadow-sm hover:shadow-md hover:border-sky-300 transition">
+    <div class="text-3xl mb-2">🚜</div>
+    <div class="text-lg font-semibold">Equipment</div>
+    <p class="text-sm text-slate-500">Manage equipment and who is trained on each piece.</p>
+  </a>
   <a href="{% url 'matrix' %}"
      class="block rounded-xl border bg-white p-6 shadow-sm hover:shadow-md hover:border-sky-300 transition">
     <div class="text-3xl mb-2">📊</div>

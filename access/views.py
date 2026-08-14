@@ -9,43 +9,21 @@ Navigation follows the requested flow:
 "Trained on equipment" == a currently-valid qualification grant, so add/remove here reuses the
 read-time fail-safe engine in services.py. Mutations are permission-gated (can_manage / can_grant).
 """
-from datetime import datetime, timezone as dt_timezone
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from django.shortcuts import get_object_or_404, render, redirect
-from django.utils.text import slugify
-from django.views.decorators.http import require_POST
-from django.utils import timezone
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.db.models import Q
-
-from .models import EmployeeTraining, Qualification, Role, User, UserQualification
-from .services import (
-    can_edit_employee,
-    can_grant,
-    can_manage_certifications,
-    can_manage_equipment,
-    can_manage_training,
-    can_view_employee_directory,
-    can_view_equipment_directory,
-    can_view_roster,
-    can_view_training,
-    effective_permission_codes,
-    can_manage,
-)
+from .models import Qualification, User, UserQualification
+from .services import can_grant, can_manage, effective_permission_codes
 
 
 # ---------------------------------------------------------------------------- home / self
 @login_required
 def home(request):
-    """Landing hub after login: Employees | Equipment."""
+    """Landing hub after login."""
     return render(request, "access/home.html", {"can_manage": can_manage(request.user)})
 
 
@@ -69,10 +47,10 @@ def dashboard(request):
 @login_required
 def employees_index(request):
     """Two options: First Shift / Second Shift, with counts."""
-    counts = {
-        s.value: User.objects.filter(shift=s.value).count() for s in User.Shift
-    }
-    shifts = [{"value": s.value, "label": s.label, "count": counts[s.value]} for s in User.Shift]
+    shifts = [
+        {"value": s.value, "label": s.label, "count": User.objects.filter(shift=s.value).count()}
+        for s in User.Shift
+    ]
     return render(request, "access/employees_index.html", {"shifts": shifts})
 
 
@@ -88,11 +66,15 @@ def shift_detail(request, shift):
         messages.error(request, "Unknown shift.")
         return redirect("employees_index")
     employees = User.objects.filter(shift=shift).order_by("first_name", "username")
-    label = User.Shift(shift).label
     return render(
         request,
         "access/shift_detail.html",
-        {"shift": shift, "label": label, "employees": employees, "can_manage": can_manage(request.user)},
+        {
+            "shift": shift,
+            "label": User.Shift(shift).label,
+            "employees": employees,
+            "can_manage": can_manage(request.user),
+        },
     )
 
 
@@ -112,22 +94,110 @@ def employee_add(request):
         messages.error(request, "Please enter a name.")
         return redirect("shift_detail", shift=shift)
 
-    if not can_manage(request.user):
-        messages.error(request, "You do not have permission to manage the roster.")
-        return redirect("shift_detail", shift=shift)
-
-    base = slugify(name) or "employee"
-    username = base
-    i = 1
-    while User.objects.filter(username=username).exists():
-        i += 1
-        username = f"{base}-{i}"
-
+    username = _unique(User, "username", slugify(name) or "employee")
     user = User(username=username, first_name=name, shift=shift)
     user.set_unusable_password()  # roster entry — floor employees don't log in
     user.save()
     messages.success(request, f"Added {name} to {User.Shift(shift).label}.")
     return redirect("shift_detail", shift=shift)
+
+
+@login_required
+@require_POST
+def employee_remove(request):
+    """Remove an employee from the roster (guarded)."""
+    employee = get_object_or_404(User, pk=request.POST.get("user_id"))
+    shift = _valid_shift(employee.shift) or ""
+    if not can_manage(request.user):
+        messages.error(request, "You do not have permission to manage the roster.")
+    elif employee == request.user:
+        messages.error(request, "You cannot remove yourself.")
+    elif employee.is_superuser:
+        messages.error(request, "You cannot remove a manager account here.")
+    else:
+        name = str(employee)
+        employee.delete()
+        messages.success(request, f"Removed {name}.")
+    return redirect("shift_detail", shift=shift) if shift else redirect("employees_index")
+
+
+# ---------------------------------------------------------------------------- equipment
+@login_required
+def equipment_index(request):
+    """List equipment; add/remove."""
+    return render(
+        request,
+        "access/equipment_index.html",
+        {"equipment": Qualification.objects.order_by("name"), "can_manage": can_manage(request.user)},
+    )
+
+
+@login_required
+@require_POST
+def equipment_add(request):
+    name = (request.POST.get("name") or "").strip()
+    if not can_manage(request.user):
+        messages.error(request, "You do not have permission to manage equipment.")
+        return redirect("equipment_index")
+    if not name:
+        messages.error(request, "Please enter an equipment name.")
+        return redirect("equipment_index")
+    Qualification.objects.create(name=name, code=_unique(Qualification, "code", slugify(name) or "equipment"))
+    messages.success(request, f"Added equipment “{name}”.")
+    return redirect("equipment_index")
+
+
+@login_required
+@require_POST
+def equipment_remove(request):
+    equipment = get_object_or_404(Qualification, pk=request.POST.get("equipment_id"))
+    if not can_manage(request.user):
+        messages.error(request, "You do not have permission to manage equipment.")
+    else:
+        name = equipment.name
+        equipment.delete()
+        messages.success(request, f"Removed equipment “{name}”.")
+    return redirect("equipment_index")
+
+
+@login_required
+def equipment_detail(request, pk):
+    """One piece of equipment + the employees currently trained on it (valid grants)."""
+    equipment = get_object_or_404(Qualification, pk=pk)
+    grants = UserQualification.objects.filter(qualification=equipment).select_related("user")
+
+    trained, trained_ids = [], set()
+    for g in grants:
+        if g.is_valid():
+            trained.append(g)
+            trained_ids.add(g.user_id)
+
+    candidates = (
+        User.objects.exclude(pk__in=trained_ids)
+        .exclude(shift="")
+        .order_by("first_name", "username")
+    )
+    return render(
+        request,
+        "access/equipment_detail.html",
+        {
+            "equipment": equipment,
+            "trained": trained,
+            "candidates": candidates,
+            "can_manage": can_manage(request.user),
+        },
+    )
+
+
+@login_required
+@require_POST
+def training_add(request):
+    """Mark an employee trained on a piece of equipment (tier-gated grant)."""
+    equipment = get_object_or_404(Qualification, pk=request.POST.get("equipment_id"))
+    employee = get_object_or_404(User, pk=request.POST.get("user_id"))
+    if not can_grant(request.user, employee):
+        messages.error(request, "You can only train employees at or below your own tier.")
+        return redirect("equipment_detail", pk=equipment.pk)
 
     now = timezone.now()
     UserQualification.objects.update_or_create(
@@ -175,3 +245,13 @@ def matrix(request):
         for u in users
     ]
     return render(request, "access/matrix.html", {"qualifications": qualifications, "rows": rows})
+
+
+# ---------------------------------------------------------------------------- helpers
+def _unique(model, field, base):
+    """Return a value based on ``base`` that is unique for ``model.field``."""
+    value, i = base, 1
+    while model.objects.filter(**{field: value}).exists():
+        i += 1
+        value = f"{base}-{i}"
+    return value

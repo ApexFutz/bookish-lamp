@@ -80,11 +80,6 @@ class User(AbstractUser):
         FIRST = "1st", "First Shift"
         SECOND = "2nd", "Second Shift"
 
-    shift = models.CharField(max_length=10, choices=Shift.choices, blank=True)
-
-    SHIFT_FIRST = Shift.FIRST
-    SHIFT_SECOND = Shift.SECOND
-    SHIFT_CHOICES = Shift.choices
     tier = models.ForeignKey(
         Tier, null=True, blank=True, on_delete=models.PROTECT, related_name="users"
     )
@@ -93,9 +88,10 @@ class User(AbstractUser):
     )
     shift = models.CharField(
         max_length=10,
-        choices=SHIFT_CHOICES,
-        default=SHIFT_FIRST,
-        help_text="The shift the employee normally works.",
+        choices=Shift.choices,
+        blank=True,
+        default="",
+        help_text="The shift the employee works. Blank for staff not on a floor shift.",
     )
     employee_number = models.CharField(
         max_length=20,
