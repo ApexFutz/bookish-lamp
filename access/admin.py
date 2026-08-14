@@ -2,7 +2,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import Permission, Qualification, Role, Tier, User, UserQualification
+from .models import EmployeeTraining, Permission, Qualification, Role, Tier, User, UserQualification
 
 
 @admin.register(Tier)
@@ -40,10 +40,10 @@ class UserQualificationInline(admin.TabularInline):
 class UserAdmin(BaseUserAdmin):
     inlines = [UserQualificationInline]
     fieldsets = BaseUserAdmin.fieldsets + (
-        ("Warehouse access", {"fields": ("tier", "role")}),
+        ("Warehouse access", {"fields": ("tier", "role", "shift", "employee_number")}),
     )
-    list_display = ("username", "first_name", "last_name", "role", "tier", "is_staff")
-    list_filter = BaseUserAdmin.list_filter + ("tier", "role")
+    list_display = ("username", "first_name", "last_name", "role", "tier", "shift", "employee_number", "is_staff")
+    list_filter = BaseUserAdmin.list_filter + ("tier", "role", "shift")
 
 
 @admin.register(UserQualification)
@@ -55,3 +55,10 @@ class UserQualificationAdmin(admin.ModelAdmin):
     @admin.display(description="Status")
     def status(self, obj):
         return obj.status()
+
+
+@admin.register(EmployeeTraining)
+class EmployeeTrainingAdmin(admin.ModelAdmin):
+    list_display = ("employee", "qualification", "priority", "status", "created_at", "target_date", "completed_at")
+    list_filter = ("priority", "status", "qualification")
+    search_fields = ("employee__username", "employee__first_name", "employee__last_name", "qualification__name")

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Equipment · bookish-lamp{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold">Equipment</h1>
+      <p class="text-sm text-slate-500">Select equipment to see which employees hold the certification.</p>
+    </div>
+    {% if can_manage_equipment %}
+    <form method="post" action="{% url 'add_equipment' %}" class="flex flex-wrap items-end gap-2 rounded-lg border bg-white p-3 shadow-sm">
+      {% csrf_token %}
+      <input name="name" type="text" placeholder="Equipment name" class="rounded border px-2 py-1.5 text-sm" required>
+      <input name="code" type="text" placeholder="Code" class="rounded border px-2 py-1.5 text-sm" required>
+      <input name="default_valid_days" type="number" min="1" value="365" class="w-20 rounded border px-2 py-1.5 text-sm">
+      <button class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500">Add equipment</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="grid gap-6 xl:grid-cols-[1fr,2fr]">
+    <aside class="rounded-lg border bg-white p-4 shadow-sm">
+      <h2 class="mb-3 text-lg font-semibold">Equipment list</h2>
+      <div class="space-y-2">
+        {% for item in equipment %}
+          <div class="flex items-center justify-between gap-3 rounded border p-2">
+            <a href="{% url 'equipment_directory' %}?equipment={{ item.id }}" class="font-medium text-sky-700 hover:underline">
+              {{ item.name }}
+            </a>
+            {% if can_manage_equipment %}
+            <form method="post" action="{% url 'remove_equipment' %}">
+              {% csrf_token %}
+              <input type="hidden" name="equipment_id" value="{{ item.id }}">
+              <button class="rounded border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50">Remove</button>
+            </form>
+            {% endif %}
+          </div>
+        {% empty %}
+          <p class="text-sm text-slate-500">No equipment configured.</p>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <section class="rounded-lg border bg-white p-4 shadow-sm">
+      {% if selected %}
+        <h2 class="text-xl font-semibold">{{ selected.name }}</h2>
+        <p class="mt-1 text-sm text-slate-500">Employees currently certified for this equipment.</p>
+        <div class="mt-4 space-y-3">
+          {% for employee in holders %}
+            <div class="rounded border bg-slate-50 p-3">
+              <div class="font-medium">{{ employee.get_full_name|default:employee.username }}</div>
+              <div class="text-xs text-slate-500">{{ employee.role_name|default:"Unassigned" }} · {{ employee.get_shift_display|default:employee.shift }}</div>
+            </div>
+          {% empty %}
+            <p class="text-sm text-slate-500">No employees currently hold this certification.</p>
+          {% endfor %}
+        </div>
+      {% else %}
+        <h2 class="text-xl font-semibold">Select equipment</h2>
+        <p class="mt-2 text-sm text-slate-500">Choose an equipment item from the list to review certified employees.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -28,7 +28,19 @@ class Command(BaseCommand):
         ]:
             perms[code] = Permission.objects.get_or_create(code=code, defaults={"description": desc})[0]
 
-        # Roles + baselines
+        # Roster hierarchy roles
+        foreman_role, _ = Role.objects.get_or_create(name="Foreman")
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
+        safety_role, _ = Role.objects.get_or_create(name="Safety Coordinator")
+        employee_role, _ = Role.objects.get_or_create(name="Employee")
+
+        # Default role baseline assignments
+        foreman_role.baseline_permissions.set([perms["orders.pack"]])
+        admin_role.baseline_permissions.set([perms["users.manage"], perms["orders.pack"]])
+        safety_role.baseline_permissions.set([perms["orders.pack"], perms["equipment.operate.forklift"]])
+        employee_role.baseline_permissions.set([perms["orders.pick"]])
+
+        # Roles used by the existing permissions prototype
         picker_role, _ = Role.objects.get_or_create(name="Picker")
         picker_role.baseline_permissions.set([perms["orders.pick"]])
         lead_role, _ = Role.objects.get_or_create(name="Shift Lead")
@@ -48,12 +60,32 @@ class Command(BaseCommand):
         )
         pallet.granted_permissions.set([perms["equipment.operate.pallet_jack"]])
 
-        # Users who log in (supervisors/managers)
+        # Users
         def make_login_user(username, first, role, tier, shift="", superuser=False):
             u, _ = User.objects.get_or_create(
                 username=username, defaults={"first_name": first}
             )
             u.first_name, u.role, u.tier, u.shift = first, role, tier, shift
+            if superuser:
+                u.is_staff = u.is_superuser = True
+            u.set_password("demo12345")
+            u.save()
+            return u
+
+        def make_user(username, first, role, tier, shift="1st", employee_number="", superuser=False):
+            u, created = User.objects.get_or_create(
+                username=username,
+                defaults={
+                    "first_name": first,
+                    "role": role,
+                    "tier": tier,
+                    "shift": shift,
+                    "employee_number": employee_number,
+                },
+            )
+            u.role, u.tier = role, tier
+            u.shift = shift
+            u.employee_number = employee_number
             if superuser:
                 u.is_staff = u.is_superuser = True
             u.set_password("demo12345")
@@ -81,4 +113,9 @@ class Command(BaseCommand):
                 u.set_unusable_password()
                 u.save()
 
-        self.stdout.write(self.style.SUCCESS("Seeded demo data. Logins: manager / lead / picker (demo12345)."))
+        # Additional demo users (login-capable)
+        make_user("foreman", "Frank", foreman_role, tiers["lead"], "1st", "EMP-110")
+        make_user("admin", "Ava", admin_role, tiers["manager"], "2nd", "EMP-220")
+        make_user("safety", "Sam", safety_role, tiers["lead"], "1st", "EMP-111")
+
+        self.stdout.write(self.style.SUCCESS("Seeded demo data. Logins: manager / lead / picker / foreman / admin / safety (demo12345)."))

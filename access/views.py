@@ -9,15 +9,37 @@ Navigation follows the requested flow:
 "Trained on equipment" == a currently-valid qualification grant, so add/remove here reuses the
 read-time fail-safe engine in services.py. Mutations are permission-gated (can_manage / can_grant).
 """
+from datetime import datetime, timezone as dt_timezone
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from .models import Qualification, User, UserQualification
-from .services import can_grant, can_manage, effective_permission_codes
+from django.shortcuts import get_object_or_404, render, redirect
+from django.utils.text import slugify
+from django.views.decorators.http import require_POST
+from django.utils import timezone
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.db.models import Q
+
+from .models import EmployeeTraining, Qualification, Role, User, UserQualification
+from .services import (
+    can_edit_employee,
+    can_grant,
+    can_manage_certifications,
+    can_manage_equipment,
+    can_manage_training,
+    can_view_employee_directory,
+    can_view_equipment_directory,
+    can_view_roster,
+    can_view_training,
+    effective_permission_codes,
+    can_manage,
+)
 
 
 # ---------------------------------------------------------------------------- home / self
@@ -90,6 +112,10 @@ def employee_add(request):
         messages.error(request, "Please enter a name.")
         return redirect("shift_detail", shift=shift)
 
+    if not can_manage(request.user):
+        messages.error(request, "You do not have permission to manage the roster.")
+        return redirect("shift_detail", shift=shift)
+
     base = slugify(name) or "employee"
     username = base
     i = 1
@@ -103,114 +129,6 @@ def employee_add(request):
     messages.success(request, f"Added {name} to {User.Shift(shift).label}.")
     return redirect("shift_detail", shift=shift)
 
-
-@login_required
-@require_POST
-def employee_remove(request):
-    """Remove an employee from the roster (guarded)."""
-    employee = get_object_or_404(User, pk=request.POST.get("user_id"))
-    shift = _valid_shift(employee.shift) or ""
-    if not can_manage(request.user):
-        messages.error(request, "You do not have permission to manage the roster.")
-    elif employee == request.user:
-        messages.error(request, "You cannot remove yourself.")
-    elif employee.is_superuser:
-        messages.error(request, "You cannot remove a manager account here.")
-    else:
-        name = str(employee)
-        employee.delete()
-        messages.success(request, f"Removed {name}.")
-    return redirect("shift_detail", shift=shift) if shift else redirect("employees_index")
-
-
-# ---------------------------------------------------------------------------- equipment
-@login_required
-def equipment_index(request):
-    """List equipment; add/remove."""
-    equipment = Qualification.objects.order_by("name")
-    return render(
-        request,
-        "access/equipment_index.html",
-        {"equipment": equipment, "can_manage": can_manage(request.user)},
-    )
-
-
-@login_required
-@require_POST
-def equipment_add(request):
-    name = (request.POST.get("name") or "").strip()
-    if not can_manage(request.user):
-        messages.error(request, "You do not have permission to manage equipment.")
-        return redirect("equipment_index")
-    if not name:
-        messages.error(request, "Please enter an equipment name.")
-        return redirect("equipment_index")
-
-    base = slugify(name) or "equipment"
-    code = base
-    i = 1
-    while Qualification.objects.filter(code=code).exists():
-        i += 1
-        code = f"{base}-{i}"
-    Qualification.objects.create(name=name, code=code)
-    messages.success(request, f"Added equipment “{name}”.")
-    return redirect("equipment_index")
-
-
-@login_required
-@require_POST
-def equipment_remove(request):
-    equipment = get_object_or_404(Qualification, pk=request.POST.get("equipment_id"))
-    if not can_manage(request.user):
-        messages.error(request, "You do not have permission to manage equipment.")
-    else:
-        name = equipment.name
-        equipment.delete()
-        messages.success(request, f"Removed equipment “{name}”.")
-    return redirect("equipment_index")
-
-
-@login_required
-def equipment_detail(request, pk):
-    """One piece of equipment + the employees currently trained on it (valid grants)."""
-    equipment = get_object_or_404(Qualification, pk=pk)
-    grants = UserQualification.objects.filter(qualification=equipment).select_related("user")
-
-    trained_ids = set()
-    trained = []
-    for g in grants:
-        if g.is_valid():
-            trained.append(g)
-            trained_ids.add(g.user_id)
-
-    # Candidates = employees (users on a shift) not currently trained.
-    candidates = (
-        User.objects.exclude(pk__in=trained_ids)
-        .exclude(shift="")
-        .order_by("first_name", "username")
-    )
-    return render(
-        request,
-        "access/equipment_detail.html",
-        {
-            "equipment": equipment,
-            "trained": trained,
-            "candidates": candidates,
-            "can_manage": can_manage(request.user),
-        },
-    )
-
-
-@login_required
-@require_POST
-def training_add(request):
-    """Mark an employee trained on a piece of equipment (tier-gated grant)."""
-    equipment = get_object_or_404(Qualification, pk=request.POST.get("equipment_id"))
-    employee = get_object_or_404(User, pk=request.POST.get("user_id"))
-    if not can_grant(request.user, employee):
-        messages.error(request, "You can only train employees at or below your own tier.")
-        return redirect("equipment_detail", pk=equipment.pk)
-
     now = timezone.now()
     UserQualification.objects.update_or_create(
         user=employee,
@@ -220,6 +138,7 @@ def training_add(request):
             "granted_at": now,
             "expires_at": now + timezone.timedelta(days=equipment.default_valid_days),
             "revoked_at": None,
+            "quarterly_recertification_due": now + timezone.timedelta(days=90),
         },
     )
     messages.success(request, f"{employee} is now trained on {equipment.name}.")

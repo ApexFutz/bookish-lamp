@@ -77,15 +77,31 @@ class User(AbstractUser):
     """
 
     class Shift(models.TextChoices):
-        FIRST = "first", "First Shift"
-        SECOND = "second", "Second Shift"
+        FIRST = "1st", "First Shift"
+        SECOND = "2nd", "Second Shift"
 
     shift = models.CharField(max_length=10, choices=Shift.choices, blank=True)
+
+    SHIFT_FIRST = Shift.FIRST
+    SHIFT_SECOND = Shift.SECOND
+    SHIFT_CHOICES = Shift.choices
     tier = models.ForeignKey(
         Tier, null=True, blank=True, on_delete=models.PROTECT, related_name="users"
     )
     role = models.ForeignKey(
         Role, null=True, blank=True, on_delete=models.PROTECT, related_name="users"
+    )
+    shift = models.CharField(
+        max_length=10,
+        choices=SHIFT_CHOICES,
+        default=SHIFT_FIRST,
+        help_text="The shift the employee normally works.",
+    )
+    employee_number = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Internal employee number or badge ID.",
     )
     qualifications = models.ManyToManyField(
         Qualification,
@@ -96,6 +112,22 @@ class User(AbstractUser):
 
     def __str__(self) -> str:
         return self.get_full_name() or self.username
+
+    @property
+    def role_name(self) -> str:
+        return self.role.name if self.role else "Unassigned"
+
+    @property
+    def is_foreman(self) -> bool:
+        return bool(self.role and self.role.name.lower() == "foreman")
+
+    @property
+    def is_admin(self) -> bool:
+        return bool(self.role and self.role.name.lower() == "admin")
+
+    @property
+    def is_safety_coordinator(self) -> bool:
+        return bool(self.role and self.role.name.lower() == "safety coordinator")
 
 
 class UserQualification(models.Model):
@@ -118,6 +150,16 @@ class UserQualification(models.Model):
     )
     revoked_at = models.DateTimeField(
         null=True, blank=True, help_text="Set to immediately invalidate regardless of expiry."
+    )
+    quarterly_recertification_due = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Next scheduled quarterly recertification review date.",
+    )
+    last_recertified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="The date the certification was last re-verified.",
     )
 
     class Meta:
@@ -148,5 +190,84 @@ class UserQualification(models.Model):
             return "expiring"
         return "valid"
 
+    @property
+    def recertification_status(self) -> str:
+        if self.quarterly_recertification_due is None:
+            return "not-scheduled"
+        if self.quarterly_recertification_due <= timezone.now():
+            return "due"
+        if self.quarterly_recertification_due <= timezone.now() + timezone.timedelta(days=30):
+            return "upcoming"
+        return "on-track"
+
+    @property
+    def recertification_status_label(self) -> str:
+        if self.quarterly_recertification_due is None:
+            return "No due date"
+        if self.quarterly_recertification_due < timezone.now():
+            return "Overdue"
+        if self.quarterly_recertification_due <= timezone.now() + timezone.timedelta(days=30):
+            return "Due soon"
+        return "On track"
+
+    @property
+    def recertification_days_remaining(self) -> int | None:
+        if self.quarterly_recertification_due is None:
+            return None
+        delta = self.quarterly_recertification_due - timezone.now()
+        return delta.days
+
     def __str__(self) -> str:
         return f"{self.user} · {self.qualification} ({self.status()})"
+
+
+class EmployeeTraining(models.Model):
+    """A training requirement for an employee based on a certification/equipment gap."""
+
+    PRIORITY_LOW = "low"
+    PRIORITY_MEDIUM = "medium"
+    PRIORITY_HIGH = "high"
+    PRIORITY_CRITICAL = "critical"
+    PRIORITY_CHOICES = [
+        (PRIORITY_LOW, "Low"),
+        (PRIORITY_MEDIUM, "Medium"),
+        (PRIORITY_HIGH, "High"),
+        (PRIORITY_CRITICAL, "Critical"),
+    ]
+
+    STATUS_PENDING = "pending"
+    STATUS_IN_PROGRESS = "in_progress"
+    STATUS_COMPLETED = "completed"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_IN_PROGRESS, "In progress"),
+        (STATUS_COMPLETED, "Completed"),
+    ]
+
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name="training_requirements")
+    qualification = models.ForeignKey(
+        Qualification,
+        on_delete=models.CASCADE,
+        related_name="training_requirements",
+    )
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default=PRIORITY_MEDIUM)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    created_at = models.DateTimeField(default=timezone.now)
+    target_date = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True, default="")
+
+    class Meta:
+        ordering = ["created_at", "-priority"]
+
+    @property
+    def priority_rank(self) -> int:
+        return {
+            self.PRIORITY_CRITICAL: 4,
+            self.PRIORITY_HIGH: 3,
+            self.PRIORITY_MEDIUM: 2,
+            self.PRIORITY_LOW: 1,
+        }.get(self.priority, 0)
+
+    def __str__(self) -> str:
+        return f"{self.employee} · {self.qualification} ({self.status})"
