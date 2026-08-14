@@ -101,6 +101,25 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
+# --- Sessions & cookie security (issue #8) -------------------------------------------
+# Idle timeout: a session expires after this many seconds of inactivity. Default is one
+# 8-hour warehouse shift; overridable per deployment.
+SESSION_COOKIE_AGE = int(os.getenv("SESSION_COOKIE_AGE", str(8 * 60 * 60)))
+# Sliding expiry: each request resets the clock, so active users stay logged in and
+# idle sessions still time out — appropriate for shared floor terminals.
+SESSION_SAVE_EVERY_REQUEST = True
+# Optionally end the session when the browser closes (safer on shared devices).
+SESSION_EXPIRE_AT_BROWSER_CLOSE = env_bool("SESSION_EXPIRE_AT_BROWSER_CLOSE", False)
+
+# Cookie hardening. Secure flags require HTTPS, so they are enabled only outside DEBUG
+# (local dev runs over http). HTTPOnly keeps cookies out of JavaScript; SameSite=Lax
+# mitigates CSRF while allowing normal top-level navigation.
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = not DEBUG
+
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True

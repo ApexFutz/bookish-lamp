@@ -134,3 +134,27 @@ class SmokeTests(TestCase):
     def test_login_page_loads_anonymously(self):
         self.client.logout()
         self.assertEqual(self.client.get("/login/").status_code, 200)
+
+
+class SessionSecurityTests(TestCase):
+    """Session/cookie policy (issue #8)."""
+
+    def test_session_policy_settings(self):
+        from django.conf import settings
+
+        self.assertGreater(settings.SESSION_COOKIE_AGE, 0)
+        self.assertTrue(settings.SESSION_SAVE_EVERY_REQUEST)
+        self.assertTrue(settings.SESSION_COOKIE_HTTPONLY)
+        self.assertEqual(settings.SESSION_COOKIE_SAMESITE, "Lax")
+
+    def test_sliding_expiry_resends_cookie_with_max_age(self):
+        from django.conf import settings
+
+        user = User.objects.create_user("worker", password="pw")
+        self.client.force_login(user)
+        # SESSION_SAVE_EVERY_REQUEST=True means each response re-sets the session cookie
+        # with the full max-age, so an active user's idle timeout keeps sliding forward.
+        resp = self.client.get("/me/")
+        cookie = resp.cookies.get("sessionid")
+        self.assertIsNotNone(cookie)
+        self.assertEqual(cookie["max-age"], settings.SESSION_COOKIE_AGE)
