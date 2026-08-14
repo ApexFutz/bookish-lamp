@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "axes",
     "access",
 ]
 
@@ -52,7 +53,24 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # django-axes must be last so it can act on the fully-processed request (issue #11).
+    "axes.middleware.AxesMiddleware",
 ]
+
+# AxesStandaloneBackend must precede ModelBackend so failed logins are counted/locked.
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+# --- Login rate limiting & lockout (issue #11, django-axes) ---------------------------
+AXES_FAILURE_LIMIT = int(os.getenv("AXES_FAILURE_LIMIT", "5"))
+# Lock the account after too many failures for COOLOFF_TIME hours, then auto-unlock.
+AXES_COOLOFF_TIME = int(os.getenv("AXES_COOLOFF_HOURS", "1"))
+# Lock by username so one bad actor can't lock an entire shared warehouse IP off the app.
+AXES_LOCKOUT_PARAMETERS = ["username"]
+AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_TEMPLATE = "registration/lockout.html"
 
 ROOT_URLCONF = "config.urls"
 

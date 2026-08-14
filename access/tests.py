@@ -210,3 +210,29 @@ class PasswordLifecycleTests(TestCase):
         resp = self.client.post("/password/reset/", {"email": "nobody@example.com"})
         self.assertEqual(resp.status_code, 302)  # same response as a known address
         self.assertEqual(len(mail.outbox), 0)
+
+
+class LoginLockoutTests(TestCase):
+    """Login rate limiting / lockout via django-axes (issue #11)."""
+
+    def setUp(self):
+        from django.conf import settings
+
+        self.limit = settings.AXES_FAILURE_LIMIT
+        self.user = User.objects.create_user("locky", password="RightPass!234")
+
+    def test_account_locks_after_repeated_failures(self):
+        for _ in range(self.limit):
+            self.client.post("/login/", {"username": "locky", "password": "wrong"})
+        # Once locked, even the correct password is refused (HTTP 429 Too Many Requests).
+        resp = self.client.post("/login/", {"username": "locky", "password": "RightPass!234"})
+        self.assertEqual(resp.status_code, 429)
+        self.assertFalse(resp.wsgi_request.user.is_authenticated)
+
+    def test_unrelated_user_is_not_locked(self):
+        User.objects.create_user("other", password="RightPass!234")
+        for _ in range(self.limit):
+            self.client.post("/login/", {"username": "locky", "password": "wrong"})
+        # A different username still authenticates (lockout is per-username).
+        resp = self.client.post("/login/", {"username": "other", "password": "RightPass!234"}, follow=True)
+        self.assertTrue(resp.context["user"].is_authenticated)
