@@ -158,3 +158,55 @@ class SessionSecurityTests(TestCase):
         cookie = resp.cookies.get("sessionid")
         self.assertIsNotNone(cookie)
         self.assertEqual(cookie["max-age"], settings.SESSION_COOKIE_AGE)
+
+
+class PasswordLifecycleTests(TestCase):
+    """Change / reset / complexity (issue #10)."""
+
+    def test_logged_in_user_can_change_password(self):
+        user = User.objects.create_user("worker", password="OldPass!234")
+        self.client.force_login(user)
+        resp = self.client.post(
+            "/password/change/",
+            {"old_password": "OldPass!234", "new_password1": "NewPass!234", "new_password2": "NewPass!234"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("NewPass!234"))
+
+    def test_password_change_rejects_wrong_old_password(self):
+        user = User.objects.create_user("worker", password="OldPass!234")
+        self.client.force_login(user)
+        resp = self.client.post(
+            "/password/change/",
+            {"old_password": "WRONG", "new_password1": "NewPass!234", "new_password2": "NewPass!234"},
+        )
+        self.assertEqual(resp.status_code, 200)  # re-rendered with errors
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("OldPass!234"))  # unchanged
+
+    def test_complexity_rules_reject_weak_password(self):
+        user = User.objects.create_user("worker", password="OldPass!234")
+        self.client.force_login(user)
+        resp = self.client.post(
+            "/password/change/",
+            {"old_password": "OldPass!234", "new_password1": "123", "new_password2": "123"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "too short", status_code=200)
+
+    def test_forgotten_password_sends_reset_email(self):
+        from django.core import mail
+
+        User.objects.create_user("worker", password="OldPass!234", email="worker@example.com")
+        resp = self.client.post("/password/reset/", {"email": "worker@example.com"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("/reset/", mail.outbox[0].body)
+
+    def test_reset_does_not_reveal_unknown_email(self):
+        from django.core import mail
+
+        resp = self.client.post("/password/reset/", {"email": "nobody@example.com"})
+        self.assertEqual(resp.status_code, 302)  # same response as a known address
+        self.assertEqual(len(mail.outbox), 0)

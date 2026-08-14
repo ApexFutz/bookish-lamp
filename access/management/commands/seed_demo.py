@@ -66,6 +66,7 @@ class Command(BaseCommand):
                 username=username, defaults={"first_name": first}
             )
             u.first_name, u.role, u.tier, u.shift = first, role, tier, shift
+            u.email = f"{username}@example.com"
             if superuser:
                 u.is_staff = u.is_superuser = True
             u.set_password("demo12345")
