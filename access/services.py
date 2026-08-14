@@ -5,6 +5,9 @@ deny-by-default: any error, missing data, or unknown state resolves to *denied*.
 """
 from __future__ import annotations
 
+from functools import wraps
+
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone
 
 from .models import User, UserQualification
@@ -51,6 +54,26 @@ def has_permission(user: User, permission_code: str, at=None) -> bool:
         return permission_code in effective_permission_codes(user, at=at)
     except Exception:
         return False
+
+
+def require_permission(permission_code: str):
+    """View decorator: allow only users who hold ``permission_code``, else raise 403.
+
+    Reusable guard (issue #13) built on the fail-safe read-time resolver — any user whose
+    effective permissions don't include the code (incl. anonymous/error states) is denied.
+    Pair with ``@login_required`` so anonymous users are redirected to log in first.
+    """
+
+    def decorator(view):
+        @wraps(view)
+        def wrapped(request, *args, **kwargs):
+            if not has_permission(request.user, permission_code):
+                raise PermissionDenied("You do not have permission to perform this action.")
+            return view(request, *args, **kwargs)
+
+        return wrapped
+
+    return decorator
 
 
 def can_manage(user: User) -> bool:

@@ -17,7 +17,10 @@ from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
 from .models import Qualification, User, UserQualification
-from .services import can_grant, can_manage, effective_permission_codes
+from .services import can_grant, can_manage, effective_permission_codes, require_permission
+
+# Permission code that gates roster/equipment management (issue #13).
+MANAGE = "users.manage"
 
 
 # ---------------------------------------------------------------------------- home / self
@@ -80,6 +83,7 @@ def shift_detail(request, shift):
 
 @login_required
 @require_POST
+@require_permission(MANAGE)
 def employee_add(request):
     """Create a new roster employee (no usable login) on the given shift."""
     shift = _valid_shift(request.POST.get("shift"))
@@ -87,9 +91,6 @@ def employee_add(request):
     if shift is None:
         messages.error(request, "Unknown shift.")
         return redirect("employees_index")
-    if not can_manage(request.user):
-        messages.error(request, "You do not have permission to manage the roster.")
-        return redirect("shift_detail", shift=shift)
     if not name:
         messages.error(request, "Please enter a name.")
         return redirect("shift_detail", shift=shift)
@@ -104,13 +105,12 @@ def employee_add(request):
 
 @login_required
 @require_POST
+@require_permission(MANAGE)
 def employee_remove(request):
     """Remove an employee from the roster (guarded)."""
     employee = get_object_or_404(User, pk=request.POST.get("user_id"))
     shift = _valid_shift(employee.shift) or ""
-    if not can_manage(request.user):
-        messages.error(request, "You do not have permission to manage the roster.")
-    elif employee == request.user:
+    if employee == request.user:
         messages.error(request, "You cannot remove yourself.")
     elif employee.is_superuser:
         messages.error(request, "You cannot remove a manager account here.")
@@ -134,11 +134,9 @@ def equipment_index(request):
 
 @login_required
 @require_POST
+@require_permission(MANAGE)
 def equipment_add(request):
     name = (request.POST.get("name") or "").strip()
-    if not can_manage(request.user):
-        messages.error(request, "You do not have permission to manage equipment.")
-        return redirect("equipment_index")
     if not name:
         messages.error(request, "Please enter an equipment name.")
         return redirect("equipment_index")
@@ -149,14 +147,12 @@ def equipment_add(request):
 
 @login_required
 @require_POST
+@require_permission(MANAGE)
 def equipment_remove(request):
     equipment = get_object_or_404(Qualification, pk=request.POST.get("equipment_id"))
-    if not can_manage(request.user):
-        messages.error(request, "You do not have permission to manage equipment.")
-    else:
-        name = equipment.name
-        equipment.delete()
-        messages.success(request, f"Removed equipment “{name}”.")
+    name = equipment.name
+    equipment.delete()
+    messages.success(request, f"Removed equipment “{name}”.")
     return redirect("equipment_index")
 
 

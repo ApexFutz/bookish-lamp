@@ -212,6 +212,34 @@ class PasswordLifecycleTests(TestCase):
         self.assertEqual(len(mail.outbox), 0)
 
 
+class PermissionGuardTests(TestCase):
+    """Reusable require_permission decorator (issue #13)."""
+
+    def setUp(self):
+        self.t1 = Tier.objects.create(name="Associate", level=1)
+        self.t3 = Tier.objects.create(name="Manager", level=3)
+        pick = Permission.objects.create(code="orders.pick")
+        manage = Permission.objects.create(code="users.manage")
+        self.picker_role = Role.objects.create(name="Picker")
+        self.picker_role.baseline_permissions.set([pick])
+        self.mgr_role = Role.objects.create(name="Manager")
+        self.mgr_role.baseline_permissions.set([manage])
+        self.picker = User.objects.create_user("picker", password="pw", role=self.picker_role, tier=self.t1)
+        self.mgr = User.objects.create_user("mgr", password="pw", role=self.mgr_role, tier=self.t3)
+
+    def test_denies_user_without_permission(self):
+        self.client.force_login(self.picker)
+        resp = self.client.post("/equipment/add/", {"name": "Reach Truck"})
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(Qualification.objects.filter(name="Reach Truck").exists())
+
+    def test_allows_user_with_permission(self):
+        self.client.force_login(self.mgr)  # has users.manage via role baseline (not a superuser)
+        resp = self.client.post("/equipment/add/", {"name": "Reach Truck"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(Qualification.objects.filter(name="Reach Truck").exists())
+
+
 class LoginLockoutTests(TestCase):
     """Login rate limiting / lockout via django-axes (issue #11)."""
 
