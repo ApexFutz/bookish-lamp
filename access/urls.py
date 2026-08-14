@@ -6,6 +6,9 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("me/", views.dashboard, name="dashboard"),
     path("matrix/", views.matrix, name="matrix"),
+    # Directory
+    path("directory/", views.directory, name="directory"),
+    path("directory/<int:pk>/", views.user_detail, name="user_detail"),
     # Employees (specific routes before the <shift> catch-all)
     path("employees/", views.employees_index, name="employees_index"),
     path("employees/add/", views.employee_add, name="employee_add"),

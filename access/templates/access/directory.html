@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Directory · bookish-lamp{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center gap-2 text-sm text-slate-500">
+  <a href="{% url 'home' %}" class="hover:text-sky-600">Home</a> <span>/</span>
+  <span class="text-slate-700 font-medium">Directory</span>
+</div>
+<h1 class="text-xl font-semibold mb-4">User directory</h1>
+
+<form method="get" class="mb-4 grid gap-2 sm:grid-cols-5 rounded-lg border bg-white p-4 shadow-sm">
+  <input name="q" value="{{ filters.q }}" placeholder="Search name / username / emp #"
+         class="sm:col-span-2 rounded border border-slate-300 px-3 py-2 text-sm">
+  <select name="role" class="rounded border border-slate-300 px-2 py-2 text-sm">
+    <option value="">All roles</option>
+    {% for r in roles %}<option value="{{ r.id }}" {% if filters.role == r.id|stringformat:'s' %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+  </select>
+  <select name="tier" class="rounded border border-slate-300 px-2 py-2 text-sm">
+    <option value="">All tiers</option>
+    {% for t in tiers %}<option value="{{ t.id }}" {% if filters.tier == t.id|stringformat:'s' %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+  </select>
+  <select name="shift" class="rounded border border-slate-300 px-2 py-2 text-sm">
+    <option value="">All shifts</option>
+    {% for value, label in shifts %}<option value="{{ value }}" {% if filters.shift == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <select name="qualification" class="rounded border border-slate-300 px-2 py-2 text-sm">
+    <option value="">Any qualification</option>
+    {% for qn in qualifications %}<option value="{{ qn.id }}" {% if filters.qualification == qn.id|stringformat:'s' %}selected{% endif %}>Trained: {{ qn.name }}</option>{% endfor %}
+  </select>
+  <div class="sm:col-span-5 flex gap-2">
+    <button class="rounded bg-sky-600 px-4 py-2 text-sm text-white font-medium hover:bg-sky-700">Filter</button>
+    <a href="{% url 'directory' %}" class="rounded border px-4 py-2 text-sm hover:bg-slate-50">Clear</a>
+  </div>
+</form>
+
+<div class="overflow-x-auto rounded-lg border bg-white shadow-sm">
+  <table class="min-w-full text-sm">
+    <thead>
+      <tr class="border-b bg-slate-50 text-left">
+        <th class="px-4 py-3 font-semibold">Name</th>
+        <th class="px-4 py-3 font-semibold">Emp #</th>
+        <th class="px-4 py-3 font-semibold">Role</th>
+        <th class="px-4 py-3 font-semibold">Tier</th>
+        <th class="px-4 py-3 font-semibold">Shift</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in page %}
+        <tr class="border-b last:border-0 hover:bg-slate-50">
+          <td class="px-4 py-3"><a href="{% url 'user_detail' pk=u.pk %}" class="font-medium text-sky-700 hover:underline">{{ u }}</a></td>
+          <td class="px-4 py-3 text-slate-500">{{ u.employee_number|default:"—" }}</td>
+          <td class="px-4 py-3">{{ u.role|default:"—" }}</td>
+          <td class="px-4 py-3">{{ u.tier|default:"—" }}</td>
+          <td class="px-4 py-3">{{ u.get_shift_display|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="px-4 py-6 text-sm text-slate-500">No users match those filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if page.paginator.num_pages > 1 %}
+<div class="mt-3 flex items-center justify-between text-sm text-slate-600">
+  <span>Page {{ page.number }} of {{ page.paginator.num_pages }} · {{ page.paginator.count }} users</span>
+  <div class="flex gap-2">
+    {% if page.has_previous %}<a href="?{% if filters.q %}q={{ filters.q }}&{% endif %}page={{ page.previous_page_number }}" class="rounded border px-3 py-1 hover:bg-slate-50">Prev</a>{% endif %}
+    {% if page.has_next %}<a href="?{% if filters.q %}q={{ filters.q }}&{% endif %}page={{ page.next_page_number }}" class="rounded border px-3 py-1 hover:bg-slate-50">Next</a>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

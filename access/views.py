@@ -12,12 +12,14 @@ read-time fail-safe engine in services.py. Mutations are permission-gated (can_m
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from .models import AccessAuditLog, Qualification, Role, User, UserQualification
+from .models import AccessAuditLog, Qualification, Role, Tier, User, UserQualification
 from .services import can_grant, can_manage, effective_permission_codes, require_permission
 
 # Permission code that gates roster/equipment management (issue #13).
@@ -298,6 +300,84 @@ def matrix(request):
         for u in users
     ]
     return render(request, "access/matrix.html", {"qualifications": qualifications, "rows": rows})
+
+
+# ---------------------------------------------------------------------------- directory
+@login_required
+def directory(request):
+    """Searchable, filterable list of all users (issue #21)."""
+    users = User.objects.select_related("role", "tier").order_by("first_name", "username")
+
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        users = users.filter(
+            Q(first_name__icontains=q)
+            | Q(last_name__icontains=q)
+            | Q(username__icontains=q)
+            | Q(employee_number__icontains=q)
+        )
+    role_id = request.GET.get("role") or ""
+    if role_id:
+        users = users.filter(role_id=role_id)
+    tier_id = request.GET.get("tier") or ""
+    if tier_id:
+        users = users.filter(tier_id=tier_id)
+    shift = request.GET.get("shift") or ""
+    if shift:
+        users = users.filter(shift=shift)
+    qual_id = request.GET.get("qualification") or ""
+    if qual_id:
+        # "Currently trained" = a grant that is not revoked and not past expiry (read-time notion).
+        now = timezone.now()
+        users = (
+            users.filter(
+                qualification_grants__qualification_id=qual_id,
+                qualification_grants__revoked_at__isnull=True,
+            )
+            .filter(
+                Q(qualification_grants__expires_at__isnull=True)
+                | Q(qualification_grants__expires_at__gt=now)
+            )
+            .distinct()
+        )
+
+    page = Paginator(users, 25).get_page(request.GET.get("page"))
+    context = {
+        "page": page,
+        "roles": Role.objects.order_by("name"),
+        "tiers": Tier.objects.all(),
+        "qualifications": Qualification.objects.order_by("name"),
+        "shifts": User.Shift.choices,
+        "filters": {
+            "q": q,
+            "role": role_id,
+            "tier": tier_id,
+            "shift": shift,
+            "qualification": qual_id,
+        },
+    }
+    return render(request, "access/directory.html", context)
+
+
+@login_required
+def user_detail(request, pk):
+    """Read-only profile: a user's role, tier, shift, qualifications, and effective permissions."""
+    person = get_object_or_404(User.objects.select_related("role", "tier"), pk=pk)
+    grants = (
+        person.qualification_grants.select_related("qualification")
+        .prefetch_related("qualification__granted_permissions")
+        .all()
+    )
+    quals = [{"grant": g, "status": g.status(), "valid": g.is_valid()} for g in grants]
+    return render(
+        request,
+        "access/user_detail.html",
+        {
+            "person": person,
+            "quals": quals,
+            "permissions": sorted(effective_permission_codes(person)),
+        },
+    )
 
 
 # ---------------------------------------------------------------------------- helpers

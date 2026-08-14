@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ person }} · bookish-lamp{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center gap-2 text-sm text-slate-500">
+  <a href="{% url 'home' %}" class="hover:text-sky-600">Home</a> <span>/</span>
+  <a href="{% url 'directory' %}" class="hover:text-sky-600">Directory</a> <span>/</span>
+  <span class="text-slate-700 font-medium">{{ person }}</span>
+</div>
+
+<div class="grid gap-6 md:grid-cols-2">
+  <section>
+    <h1 class="text-xl font-semibold mb-1">{{ person }}</h1>
+    <p class="text-sm text-slate-500 mb-4">
+      Role: <span class="font-medium">{{ person.role|default:"—" }}</span> ·
+      Tier: <span class="font-medium">{{ person.tier|default:"—" }}</span> ·
+      Shift: <span class="font-medium">{{ person.get_shift_display|default:"—" }}</span>
+      {% if person.employee_number %} · Emp #{{ person.employee_number }}{% endif %}
+    </p>
+
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-2">Qualifications</h2>
+    <div class="space-y-2">
+      {% for q in quals %}
+        <div class="flex items-center justify-between rounded-lg border bg-white px-4 py-3 shadow-sm">
+          <div>
+            <div class="font-medium">{{ q.grant.qualification.name }}</div>
+            <div class="text-xs text-slate-500">
+              {% if q.grant.expires_at %}Expires {{ q.grant.expires_at|date:"Y-m-d" }}{% else %}No expiry{% endif %}
+            </div>
+          </div>
+          {% include "access/_status_badge.html" with status=q.status %}
+        </div>
+      {% empty %}
+        <p class="text-sm text-slate-500">No qualifications.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-2">
+      Effective permissions <span class="font-normal normal-case text-slate-400">(read-time)</span>
+    </h2>
+    <div class="rounded-lg border bg-white p-4 shadow-sm">
+      {% for code in permissions %}
+        <span class="inline-block rounded bg-slate-100 px-2 py-1 text-xs font-mono mb-1 mr-1">{{ code }}</span>
+      {% empty %}
+        <p class="text-sm text-slate-500">No permissions. (Deny-by-default.)</p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -378,3 +378,51 @@ class AuditLogTests(TestCase):
         entry = AccessAuditLog.objects.filter(action="qualification.grant", target=self.emp).first()
         self.assertEqual(entry.actor, self.manager)
         self.assertEqual(entry.detail, "Forklift")
+
+
+class DirectoryTests(TestCase):
+    """Searchable/filterable user directory + profile page (issue #21)."""
+
+    def setUp(self):
+        self.t1 = Tier.objects.create(name="Associate", level=1)
+        self.picker_role = Role.objects.create(name="Picker")
+        self.manager = User.objects.create_user("manager", password="pw", tier=self.t1)
+        self.alex = User.objects.create_user(
+            "alex", first_name="Alex", role=self.picker_role, tier=self.t1, shift=User.Shift.FIRST
+        )
+        self.sam = User.objects.create_user("sam", first_name="Sam", shift=User.Shift.SECOND)
+        self.client.force_login(self.manager)
+
+    def test_directory_lists_users(self):
+        resp = self.client.get("/directory/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Alex")
+        self.assertContains(resp, "Sam")
+
+    def test_search_filters_by_name(self):
+        resp = self.client.get("/directory/", {"q": "Alex"})
+        self.assertContains(resp, "Alex")
+        self.assertNotContains(resp, ">Sam<")
+
+    def test_filter_by_shift(self):
+        resp = self.client.get("/directory/", {"shift": User.Shift.SECOND})
+        self.assertContains(resp, "Sam")
+        self.assertNotContains(resp, ">Alex<")
+
+    def test_filter_by_current_qualification(self):
+        fork = Qualification.objects.create(name="Forklift", code="forklift")
+        UserQualification.objects.create(user=self.alex, qualification=fork)  # valid
+        UserQualification.objects.create(
+            user=self.sam,
+            qualification=fork,
+            revoked_at=timezone.now(),  # revoked -> excluded
+        )
+        resp = self.client.get("/directory/", {"qualification": fork.id})
+        self.assertContains(resp, "Alex")
+        self.assertNotContains(resp, ">Sam<")
+
+    def test_user_detail_profile_loads(self):
+        resp = self.client.get(f"/directory/{self.alex.pk}/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Alex")
+        self.assertContains(resp, "Effective permissions")
