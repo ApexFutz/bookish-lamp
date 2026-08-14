@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Training queue · bookish-lamp{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold">Training queue</h1>
+      <p class="text-sm text-slate-500">Employees requiring equipment-based training in the order they were added, with priority tracking.</p>
+    </div>
+  </div>
+
+  {% if can_manage_training %}
+  <form method="post" action="{% url 'add_training_requirement' %}" class="rounded-lg border bg-white p-4 shadow-sm space-y-3">
+    {% csrf_token %}
+    <div class="grid gap-3 md:grid-cols-5">
+      <select name="employee_id" class="rounded border px-2 py-2 text-sm" required>
+        <option value="">Select employee</option>
+        {% for employee in employees %}
+          <option value="{{ employee.id }}">{{ employee.get_full_name|default:employee.username }} ({{ employee.get_shift_display }})</option>
+        {% endfor %}
+      </select>
+      <select name="qualification_id" class="rounded border px-2 py-2 text-sm" required>
+        <option value="">Select equipment</option>
+        {% for item in equipment %}
+          <option value="{{ item.id }}">{{ item.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="priority" class="rounded border px-2 py-2 text-sm">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+        <option value="critical">Critical</option>
+      </select>
+      <input type="date" name="target_date" class="rounded border px-2 py-2 text-sm">
+      <input type="text" name="notes" placeholder="Training notes" class="rounded border px-2 py-2 text-sm">
+    </div>
+    <button class="rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500">Add training requirement</button>
+  </form>
+  {% endif %}
+
+  <div class="space-y-3">
+    {% for item in training_items %}
+      <div class="rounded-lg border bg-white p-4 shadow-sm {% if item.status == 'completed' %}border-emerald-200 bg-emerald-50{% elif item.priority == 'critical' %}border-red-200 bg-red-50{% elif item.priority == 'high' %}border-amber-200 bg-amber-50{% else %}border-slate-200{% endif %}">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-lg">{{ item.employee.get_full_name|default:item.employee.username }}</span>
+              <span class="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">{{ item.employee.get_shift_display }}</span>
+            </div>
+            <div class="mt-1 text-sm text-slate-600">Equipment: {{ item.qualification.name }} · Added {{ item.created_at|date:"M d, Y" }}</div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <span class="rounded px-2 py-1 text-xs font-semibold uppercase
+              {% if item.priority == 'critical' %}bg-red-100 text-red-700
+              {% elif item.priority == 'high' %}bg-amber-100 text-amber-700
+              {% elif item.priority == 'medium' %}bg-sky-100 text-sky-700
+              {% else %}bg-slate-200 text-slate-700{% endif %}">
+              {{ item.priority }}
+            </span>
+            {% if item.status == 'completed' %}
+              <span class="rounded bg-emerald-100 px-2 py-1 text-xs font-semibold uppercase text-emerald-700">Completed</span>
+            {% elif can_manage_training %}
+              <form method="post" action="{% url 'complete_training' %}">
+                {% csrf_token %}
+                <input type="hidden" name="training_id" value="{{ item.id }}">
+                <button class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500">Verify completion</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if item.target_date %}
+          <div class="mt-3 text-xs text-slate-600">Target date: {{ item.target_date|date:"M d, Y" }}</div>
+        {% endif %}
+        {% if item.notes %}
+          <div class="mt-2 text-sm text-slate-700">Notes: {{ item.notes }}</div>
+        {% endif %}
+      </div>
+    {% empty %}
+      <div class="rounded-lg border border-dashed bg-white p-6 text-slate-500 text-sm">
+        No employees currently in the training queue.
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="rounded-lg border bg-white p-4 shadow-sm">
+    <h2 class="mb-3 text-lg font-semibold">Recertification dashboard</h2>
+    <div class="space-y-2">
+      {% for alert in recertification_alerts %}
+        <div class="flex items-center justify-between rounded border p-2 text-sm">
+          <div>
+            <div class="font-medium">{{ alert.user.get_full_name|default:alert.user.username }} · {{ alert.qualification.name }}</div>
+            <div class="text-xs text-slate-500">Due {{ alert.quarterly_recertification_due|date:"M d, Y" }}</div>
+          </div>
+          {% if alert.quarterly_recertification_due < now %}
+            <span class="rounded bg-red-100 px-2 py-1 text-xs font-semibold uppercase text-red-700">Overdue</span>
+          {% elif alert.recertification_days_remaining <= 30 %}
+            <span class="rounded bg-amber-100 px-2 py-1 text-xs font-semibold uppercase text-amber-700">Due soon</span>
+          {% else %}
+            <span class="rounded bg-emerald-100 px-2 py-1 text-xs font-semibold uppercase text-emerald-700">On track</span>
+          {% endif %}
+        </div>
+      {% empty %}
+        <p class="text-sm text-slate-500">No recertification records due.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

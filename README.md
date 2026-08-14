@@ -41,3 +41,9 @@ Django admin: http://127.0.0.1:8000/admin/ (`manager` is a superuser).
 ## The vertical slice this scaffold proves
 Log in → see my qualifications & effective permissions → a manager grants "Forklift" →
 the picker's effective permissions change immediately (read-time) → it shows in the matrix.
+
+## Architecture decision record
+
+The platform decision is recorded in `docs/adr/ADR-0001.md`.
+
+This project uses Django + HTMX/Alpine/Tailwind on PostgreSQL, delivered as a single responsive PWA for client-owned operation and long-term maintenance.
