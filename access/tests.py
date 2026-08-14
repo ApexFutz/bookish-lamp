@@ -308,3 +308,31 @@ class LoginLockoutTests(TestCase):
         # A different username still authenticates (lockout is per-username).
         resp = self.client.post("/login/", {"username": "other", "password": "RightPass!234"}, follow=True)
         self.assertTrue(resp.context["user"].is_authenticated)
+
+
+class AuditLogTests(TestCase):
+    """Qualification grant/revoke are recorded in the append-only audit log (issue #23)."""
+
+    def setUp(self):
+        self.t3 = Tier.objects.create(name="Manager", level=3)
+        self.manager = User.objects.create_user(
+            "manager", password="pw", tier=self.t3, is_superuser=True, is_staff=True
+        )
+        self.forklift = Qualification.objects.create(name="Forklift", code="forklift")
+        self.emp = User.objects.create_user("emp", shift=User.Shift.FIRST, tier=self.t3)
+        self.client.force_login(self.manager)
+
+    def test_grant_and_revoke_are_audited(self):
+        from .models import AccessAuditLog
+
+        self.client.post("/equipment/train/", {"equipment_id": self.forklift.id, "user_id": self.emp.id})
+        self.client.post("/equipment/untrain/", {"equipment_id": self.forklift.id, "user_id": self.emp.id})
+
+        actions = list(
+            AccessAuditLog.objects.filter(target=self.emp).values_list("action", flat=True)
+        )
+        self.assertIn("qualification.grant", actions)
+        self.assertIn("qualification.revoke", actions)
+        entry = AccessAuditLog.objects.filter(action="qualification.grant", target=self.emp).first()
+        self.assertEqual(entry.actor, self.manager)
+        self.assertEqual(entry.detail, "Forklift")

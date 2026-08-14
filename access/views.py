@@ -239,6 +239,9 @@ def training_add(request):
             "quarterly_recertification_due": now + timezone.timedelta(days=90),
         },
     )
+    AccessAuditLog.record(
+        actor=request.user, target=employee, action="qualification.grant", detail=equipment.name
+    )
     messages.success(request, f"{employee} is now trained on {equipment.name}.")
     return redirect("equipment_detail", pk=equipment.pk)
 
@@ -253,9 +256,13 @@ def training_remove(request):
         messages.error(request, "You can only change training for employees at or below your tier.")
         return redirect("equipment_detail", pk=equipment.pk)
 
-    UserQualification.objects.filter(user=employee, qualification=equipment).update(
+    updated = UserQualification.objects.filter(user=employee, qualification=equipment).update(
         revoked_at=timezone.now()
     )
+    if updated:
+        AccessAuditLog.record(
+            actor=request.user, target=employee, action="qualification.revoke", detail=equipment.name
+        )
     messages.success(request, f"Removed {employee}'s training on {equipment.name}.")
     return redirect("equipment_detail", pk=equipment.pk)
 
