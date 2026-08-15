@@ -5,7 +5,12 @@
   <a href="{% url 'home' %}" class="hover:text-sky-600">Home</a> <span>/</span>
   <span class="text-slate-700 font-medium">Directory</span>
 </div>
-<h1 class="text-xl font-semibold mb-4">User directory</h1>
+<div class="mb-4 flex items-center justify-between">
+  <h1 class="text-xl font-semibold">User directory</h1>
+  {% if can_manage %}
+    <a href="{% url 'user_create' %}" class="rounded bg-sky-600 px-4 py-2 text-sm text-white font-medium hover:bg-sky-700">+ Onboard user</a>
+  {% endif %}
+</div>
 
 <form method="get" class="mb-4 grid gap-2 sm:grid-cols-5 rounded-lg border bg-white p-4 shadow-sm">
   <input name="q" value="{{ filters.q }}" placeholder="Search name / username / emp #"

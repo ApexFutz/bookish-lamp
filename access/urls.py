@@ -8,6 +8,7 @@ urlpatterns = [
     path("matrix/", views.matrix, name="matrix"),
     # Directory
     path("directory/", views.directory, name="directory"),
+    path("directory/new/", views.user_create, name="user_create"),
     path("directory/<int:pk>/", views.user_detail, name="user_detail"),
     # Employees (specific routes before the <shift> catch-all)
     path("employees/", views.employees_index, name="employees_index"),

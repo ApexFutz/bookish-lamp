@@ -12,14 +12,17 @@ read-time fail-safe engine in services.py. Mutations are permission-gated (can_m
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import PasswordResetForm
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.crypto import get_random_string
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
+from .forms import OnboardUserForm
 from .models import AccessAuditLog, Qualification, Role, Tier, User, UserQualification
 from .services import can_grant, can_manage, effective_permission_codes, require_permission
 
@@ -396,6 +399,7 @@ def directory(request):
             "shift": shift,
             "qualification": qual_id,
         },
+        "can_manage": can_manage(request.user),
     }
     return render(request, "access/directory.html", context)
 
@@ -431,6 +435,52 @@ def user_detail(request, pk):
             }
         )
     return render(request, "access/user_detail.html", context)
+
+
+@login_required
+@require_permission(MANAGE)
+def user_create(request):
+    """Onboard a new login-capable user with role/tier/shift; emails a password-setup link (#24)."""
+    if request.method == "POST":
+        form = OnboardUserForm(request.POST)
+        if form.is_valid():
+            new_user = form.save(commit=False)
+            tier = new_user.tier
+            # Tier rule: you cannot create a user at a tier higher than your own.
+            if (
+                tier is not None
+                and not request.user.is_superuser
+                and (request.user.tier is None or tier.level > request.user.tier.level)
+            ):
+                form.add_error("tier", "You cannot assign a tier higher than your own.")
+            else:
+                # Random unguessable password so the account is active and the reset flow
+                # can email a link; the new user then sets their own password via that link.
+                new_user.set_password(get_random_string(40))
+                new_user.save()
+                AccessAuditLog.record(
+                    actor=request.user,
+                    target=new_user,
+                    action="user.create",
+                    detail=new_user.role.name if new_user.role else "",
+                )
+                # Trigger initial password setup by reusing the password-reset email flow (#10).
+                reset = PasswordResetForm({"email": new_user.email})
+                if reset.is_valid():
+                    reset.save(
+                        request=request,
+                        use_https=request.is_secure(),
+                        email_template_name="registration/password_reset_email.html",
+                        subject_template_name="registration/password_reset_subject.txt",
+                    )
+                messages.success(
+                    request,
+                    f"Created {new_user}. A password-setup link was sent to {new_user.email}.",
+                )
+                return redirect("user_detail", pk=new_user.pk)
+    else:
+        form = OnboardUserForm()
+    return render(request, "access/user_create.html", {"form": form})
 
 
 # ---------------------------------------------------------------------------- helpers

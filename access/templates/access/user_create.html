@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Onboard user · bookish-lamp{% endblock %}
+{% block content %}
+<div class="mb-4 flex items-center gap-2 text-sm text-slate-500">
+  <a href="{% url 'home' %}" class="hover:text-sky-600">Home</a> <span>/</span>
+  <a href="{% url 'directory' %}" class="hover:text-sky-600">Directory</a> <span>/</span>
+  <span class="text-slate-700 font-medium">Onboard</span>
+</div>
+<h1 class="text-xl font-semibold mb-1">Onboard a new user</h1>
+<p class="text-sm text-slate-500 mb-4">Creates a login-capable account and emails a password-setup link.</p>
+
+<form method="post" class="mx-auto max-w-lg space-y-3 rounded-lg border bg-white p-5 shadow-sm">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">{{ form.non_field_errors }}</div>
+  {% endif %}
+  {% for field in form %}
+    <div>
+      <label class="block text-sm font-medium mb-1" for="{{ field.id_for_label }}">
+        {{ field.label }}{% if field.field.required %} <span class="text-red-500">*</span>{% endif %}
+      </label>
+      {{ field }}
+      {% if field.help_text %}<p class="mt-1 text-xs text-slate-400">{{ field.help_text }}</p>{% endif %}
+      {% for e in field.errors %}<p class="mt-1 text-xs text-red-700">{{ e }}</p>{% endfor %}
+    </div>
+  {% endfor %}
+  <div class="flex gap-2 pt-1">
+    <button class="rounded bg-sky-600 px-4 py-2 text-white font-medium hover:bg-sky-700">Create user</button>
+    <a href="{% url 'directory' %}" class="rounded border px-4 py-2 hover:bg-slate-50">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -480,3 +480,63 @@ class AdminConsoleTests(TestCase):
         self.assertTrue(
             UserQualification.objects.filter(user=self.emp, qualification=fork).exists()
         )
+
+
+class OnboardUserTests(TestCase):
+    """Create & onboard a new login-capable user (issue #24)."""
+
+    def setUp(self):
+        self.t2 = Tier.objects.create(name="Lead", level=2)
+        self.t3 = Tier.objects.create(name="Manager", level=3)
+        self.role = Role.objects.create(name="Picker")
+        self.manage_perm = Permission.objects.create(code="users.manage")
+        mgr_role = Role.objects.create(name="Manager")
+        mgr_role.baseline_permissions.set([self.manage_perm])
+        self.manager = User.objects.create_user(
+            "manager", password="pw", role=mgr_role, tier=self.t3
+        )
+        self.client.force_login(self.manager)
+
+    def test_onboard_form_loads(self):
+        self.assertEqual(self.client.get("/directory/new/").status_code, 200)
+
+    def test_create_user_sends_password_setup_email_and_audits(self):
+        from django.core import mail
+
+        from .models import AccessAuditLog
+
+        resp = self.client.post(
+            "/directory/new/",
+            {
+                "username": "newhire",
+                "first_name": "New",
+                "last_name": "Hire",
+                "email": "newhire@example.com",
+                "employee_number": "EMP-900",
+                "role": self.role.id,
+                "tier": self.t2.id,
+                "shift": User.Shift.FIRST,
+            },
+        )
+        new_user = User.objects.get(username="newhire")
+        self.assertRedirects(resp, f"/directory/{new_user.pk}/")
+        self.assertEqual(new_user.role, self.role)
+        self.assertEqual(new_user.tier, self.t2)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue(
+            AccessAuditLog.objects.filter(target=new_user, action="user.create").exists()
+        )
+
+    def test_cannot_onboard_above_own_tier(self):
+        t4 = Tier.objects.create(name="Director", level=4)
+        resp = self.client.post(
+            "/directory/new/",
+            {"username": "toohigh", "email": "t@example.com", "tier": t4.id},
+        )
+        self.assertEqual(resp.status_code, 200)  # re-rendered with an error
+        self.assertFalse(User.objects.filter(username="toohigh").exists())
+
+    def test_non_manager_is_denied(self):
+        peon = User.objects.create_user("peon", password="pw", tier=self.t2)
+        self.client.force_login(peon)
+        self.assertEqual(self.client.get("/directory/new/").status_code, 403)
