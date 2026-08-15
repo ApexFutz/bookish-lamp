@@ -579,7 +579,9 @@ class BootstrapAdminTests(TestCase):
     def test_creates_first_admin_when_none_exists(self):
         from django.core.management import call_command
 
-        call_command("bootstrap_admin", username="root", password="Str0ng!Passphrase1", email="r@example.com")
+        call_command(
+            "bootstrap_admin", username="root", password="Str0ng!Passphrase1", email="r@example.com"
+        )
         u = User.objects.get(username="root")
         self.assertTrue(u.is_superuser and u.is_staff)
         self.assertTrue(u.check_password("Str0ng!Passphrase1"))

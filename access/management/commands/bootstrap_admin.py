@@ -4,6 +4,7 @@ Self-disables: once any superuser exists it refuses to run, so it can't be used 
 extra admins later. Credentials come from flags or BOOTSTRAP_ADMIN_* env vars — no developer
 account is ever seeded, keeping the handoff clean.
 """
+
 import os
 
 from django.contrib.auth.password_validation import validate_password
