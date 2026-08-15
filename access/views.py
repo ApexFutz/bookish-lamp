@@ -329,21 +329,41 @@ def training_remove(request):
 # ---------------------------------------------------------------------------- skills matrix (bonus)
 @login_required
 def matrix(request):
-    users = User.objects.select_related("role", "tier").order_by("username")
+    """Skills-matrix heatmap: users x qualifications, color-coded by live status (#31)."""
+    users = User.objects.select_related("role", "tier").order_by("first_name", "username")
+    role_id = request.GET.get("role") or ""
+    if role_id:
+        users = users.filter(role_id=role_id)
+    shift = request.GET.get("shift") or ""
+    if shift:
+        users = users.filter(shift=shift)
+
     qualifications = list(Qualification.objects.order_by("name"))
     cell = {}
     for g in UserQualification.objects.select_related("qualification"):
         cell[(g.user_id, g.qualification_id)] = g.status()
-    rows = [
+
+    rows, counts = [], {"valid": 0, "expiring": 0, "expired": 0, "revoked": 0, "none": 0}
+    for u in users:
+        row_cells = []
+        for q in qualifications:
+            status = cell.get((u.id, q.id), "none")
+            counts[status] = counts.get(status, 0) + 1
+            row_cells.append({"qual": q, "status": status})
+        rows.append({"user": u, "cells": row_cells})
+
+    return render(
+        request,
+        "access/matrix.html",
         {
-            "user": u,
-            "cells": [
-                {"qual": q, "status": cell.get((u.id, q.id), "none")} for q in qualifications
-            ],
-        }
-        for u in users
-    ]
-    return render(request, "access/matrix.html", {"qualifications": qualifications, "rows": rows})
+            "qualifications": qualifications,
+            "rows": rows,
+            "counts": counts,
+            "roles": Role.objects.order_by("name"),
+            "shifts": User.Shift.choices,
+            "filters": {"role": role_id, "shift": shift},
+        },
+    )
 
 
 # ---------------------------------------------------------------------------- directory

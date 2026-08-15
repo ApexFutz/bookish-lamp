@@ -4,40 +4,62 @@
 <h1 class="text-xl font-semibold mb-1">Skills matrix</h1>
 <p class="text-sm text-slate-500 mb-4">Live status — validity is derived at read time, never a stale flag.</p>
 
+<form method="get" class="mb-3 flex flex-wrap items-center gap-2">
+  <select name="role" class="rounded border border-slate-300 px-2 py-1.5 text-sm">
+    <option value="">All roles</option>
+    {% for r in roles %}<option value="{{ r.id }}" {% if filters.role == r.id|stringformat:'s' %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+  </select>
+  <select name="shift" class="rounded border border-slate-300 px-2 py-1.5 text-sm">
+    <option value="">All shifts</option>
+    {% for value, label in shifts %}<option value="{{ value }}" {% if filters.shift == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <button class="rounded bg-sky-600 px-3 py-1.5 text-sm text-white font-medium hover:bg-sky-700">Filter</button>
+  <a href="{% url 'matrix' %}" class="rounded border px-3 py-1.5 text-sm hover:bg-slate-50">Clear</a>
+</form>
+
+<div class="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+  <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-emerald-400"></span> Valid ({{ counts.valid }})</span>
+  <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-amber-400"></span> Expiring ({{ counts.expiring }})</span>
+  <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-red-400"></span> Expired ({{ counts.expired }})</span>
+  <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-slate-300"></span> Revoked ({{ counts.revoked }})</span>
+  <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded border bg-white"></span> Not trained</span>
+</div>
+
 <div class="overflow-x-auto rounded-lg border bg-white shadow-sm">
-  <table class="min-w-full text-sm">
+  <table class="min-w-full border-separate border-spacing-0 text-sm">
     <thead>
-      <tr class="border-b bg-slate-50 text-left">
-        <th class="sticky left-0 bg-slate-50 px-4 py-3 font-semibold">Worker</th>
+      <tr class="bg-slate-50 text-left">
+        <th class="sticky left-0 z-10 bg-slate-50 border-b px-4 py-3 font-semibold">Worker</th>
         {% for q in qualifications %}
-          <th class="px-4 py-3 font-semibold whitespace-nowrap">{{ q.name }}</th>
+          <th class="border-b px-3 py-3 font-semibold whitespace-nowrap text-center">
+            <a href="{% url 'equipment_detail' pk=q.pk %}" class="hover:text-sky-600">{{ q.name }}</a>
+          </th>
         {% endfor %}
       </tr>
     </thead>
     <tbody>
       {% for row in rows %}
-        <tr class="border-b last:border-0">
-          <td class="sticky left-0 bg-white px-4 py-3 whitespace-nowrap">
-            <div class="font-medium">{{ row.user }}</div>
-            <div class="text-xs text-slate-500">{{ row.user.role|default:"—" }} · {{ row.user.tier|default:"—" }}</div>
+        <tr>
+          <td class="sticky left-0 z-10 bg-white border-b px-4 py-2 whitespace-nowrap">
+            <a href="{% url 'user_detail' pk=row.user.pk %}" class="font-medium text-sky-700 hover:underline">{{ row.user }}</a>
+            <div class="text-xs text-slate-500">{{ row.user.role|default:"—" }} · {{ row.user.get_shift_display|default:"—" }}</div>
           </td>
           {% for cell in row.cells %}
-            <td class="px-4 py-3">
-              <div class="flex items-center gap-2">
-                {% include "access/_status_badge.html" with status=cell.status %}
-                {% if can_grant_any and cell.status != "valid" %}
-                  <form method="post" action="{% url 'grant_qualification' %}">
-                    {% csrf_token %}
-                    <input type="hidden" name="user_id" value="{{ row.user.id }}">
-                    <input type="hidden" name="qualification_id" value="{{ cell.qual.id }}">
-                    <button class="rounded border border-sky-300 px-2 py-0.5 text-xs text-sky-700 hover:bg-sky-50">
-                      Grant</button>
-                  </form>
-                {% endif %}
-              </div>
+            <td class="border-b px-1 py-1 text-center">
+              <a href="{% url 'user_detail' pk=row.user.pk %}" title="{{ row.user }} · {{ cell.qual.name }} · {{ cell.status }}"
+                 class="flex h-9 w-full min-w-[3rem] items-center justify-center rounded text-xs font-semibold
+                 {% if cell.status == 'valid' %}bg-emerald-100 text-emerald-800 hover:bg-emerald-200
+                 {% elif cell.status == 'expiring' %}bg-amber-100 text-amber-800 hover:bg-amber-200
+                 {% elif cell.status == 'expired' %}bg-red-100 text-red-800 hover:bg-red-200
+                 {% elif cell.status == 'revoked' %}bg-slate-200 text-slate-600 hover:bg-slate-300
+                 {% else %}text-slate-300 hover:bg-slate-50{% endif %}">
+                {% if cell.status == 'valid' %}✓{% elif cell.status == 'expiring' %}!{% elif cell.status == 'expired' %}✕{% elif cell.status == 'revoked' %}⊘{% else %}·{% endif %}
+              </a>
             </td>
           {% endfor %}
         </tr>
+      {% empty %}
+        <tr><td class="px-4 py-6 text-sm text-slate-500">No users match those filters.</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -540,3 +540,34 @@ class OnboardUserTests(TestCase):
         peon = User.objects.create_user("peon", password="pw", tier=self.t2)
         self.client.force_login(peon)
         self.assertEqual(self.client.get("/directory/new/").status_code, 403)
+
+
+class SkillsMatrixTests(TestCase):
+    """Heatmap counts + filters (issue #31)."""
+
+    def setUp(self):
+        self.t1 = Tier.objects.create(name="Associate", level=1)
+        self.role = Role.objects.create(name="Picker")
+        self.manager = User.objects.create_user("manager", password="pw", tier=self.t1)
+        self.alex = User.objects.create_user(
+            "alex", first_name="Alex", role=self.role, shift=User.Shift.FIRST
+        )
+        self.sam = User.objects.create_user("sam", first_name="Sam", shift=User.Shift.SECOND)
+        self.fork = Qualification.objects.create(name="Forklift", code="forklift")
+        UserQualification.objects.create(
+            user=self.alex,
+            qualification=self.fork,
+            expires_at=timezone.now() + timezone.timedelta(days=200),
+        )
+        self.client.force_login(self.manager)
+
+    def test_heatmap_counts_valid_cell(self):
+        resp = self.client.get("/matrix/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertGreaterEqual(resp.context["counts"]["valid"], 1)
+
+    def test_filter_by_shift_limits_rows(self):
+        resp = self.client.get("/matrix/", {"shift": User.Shift.SECOND})
+        usernames = [r["user"].username for r in resp.context["rows"]]
+        self.assertIn("sam", usernames)
+        self.assertNotIn("alex", usernames)
