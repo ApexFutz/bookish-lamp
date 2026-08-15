@@ -16,6 +16,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
@@ -134,7 +135,8 @@ def role_assign(request):
     """Assign/change an employee's job-function role. Tier-gated and audited (issue #15)."""
     employee = get_object_or_404(User, pk=request.POST.get("user_id"))
     shift = _valid_shift(employee.shift) or ""
-    dest = redirect("shift_detail", shift=shift) if shift else redirect("employees_index")
+    fallback = redirect("shift_detail", shift=shift) if shift else redirect("employees_index")
+    dest = _redirect_next(request, fallback)
 
     # Tier rule: you may only change employees at or below your own authorization tier.
     if not can_grant(request.user, employee):
@@ -157,6 +159,45 @@ def role_assign(request):
         detail=f"{old_role} → {new_role}",
     )
     messages.success(request, f"Updated {employee}'s role: {old_role} → {new_role}.")
+    return dest
+
+
+@login_required
+@require_POST
+@require_permission(MANAGE)
+def tier_assign(request):
+    """Assign/change an employee's authorization tier (issue #22). Tier-gated and audited.
+
+    You may only manage users at/below your own tier, and may not set a tier higher than
+    your own — otherwise a manager could elevate someone above themselves.
+    """
+    employee = get_object_or_404(User, pk=request.POST.get("user_id"))
+    dest = _redirect_next(request, redirect("user_detail", pk=employee.pk))
+
+    if not can_grant(request.user, employee):
+        messages.error(request, "You can only change employees at or below your own tier.")
+        return dest
+
+    tier_id = request.POST.get("tier_id") or ""
+    new_tier = get_object_or_404(Tier, pk=tier_id) if tier_id else None
+    if (
+        new_tier is not None
+        and not request.user.is_superuser
+        and (request.user.tier is None or new_tier.level > request.user.tier.level)
+    ):
+        messages.error(request, "You cannot set a tier higher than your own.")
+        return dest
+
+    old_tier = employee.tier.name if employee.tier else "—"
+    employee.tier = new_tier
+    employee.save(update_fields=["tier"])
+    AccessAuditLog.record(
+        actor=request.user,
+        target=employee,
+        action="tier.change",
+        detail=f"{old_tier} → {new_tier.name if new_tier else '—'}",
+    )
+    messages.success(request, f"Updated {employee}'s tier.")
     return dest
 
 
@@ -255,7 +296,7 @@ def training_add(request):
         actor=request.user, target=employee, action="qualification.grant", detail=equipment.name
     )
     messages.success(request, f"{employee} is now trained on {equipment.name}.")
-    return redirect("equipment_detail", pk=equipment.pk)
+    return _redirect_next(request, redirect("equipment_detail", pk=equipment.pk))
 
 
 @login_required
@@ -279,7 +320,7 @@ def training_remove(request):
             detail=equipment.name,
         )
     messages.success(request, f"Removed {employee}'s training on {equipment.name}.")
-    return redirect("equipment_detail", pk=equipment.pk)
+    return _redirect_next(request, redirect("equipment_detail", pk=equipment.pk))
 
 
 # ---------------------------------------------------------------------------- skills matrix (bonus)
@@ -369,15 +410,27 @@ def user_detail(request, pk):
         .all()
     )
     quals = [{"grant": g, "status": g.status(), "valid": g.is_valid()} for g in grants]
-    return render(
-        request,
-        "access/user_detail.html",
-        {
-            "person": person,
-            "quals": quals,
-            "permissions": sorted(effective_permission_codes(person)),
-        },
-    )
+
+    # Admin-console controls (issue #22), shown only to managers who out-rank the person.
+    can_edit = can_manage(request.user) and can_grant(request.user, person)
+    trained_ids = {g.qualification_id for g in grants if g.is_valid()}
+    context = {
+        "person": person,
+        "quals": quals,
+        "permissions": sorted(effective_permission_codes(person)),
+        "can_edit": can_edit,
+    }
+    if can_edit:
+        context.update(
+            {
+                "roles": Role.objects.order_by("name"),
+                "tiers": Tier.objects.all(),
+                "grantable_quals": Qualification.objects.exclude(pk__in=trained_ids).order_by(
+                    "name"
+                ),
+            }
+        )
+    return render(request, "access/user_detail.html", context)
 
 
 # ---------------------------------------------------------------------------- helpers
@@ -388,3 +441,15 @@ def _unique(model, field, base):
         i += 1
         value = f"{base}-{i}"
     return value
+
+
+def _redirect_next(request, fallback):
+    """Redirect to a safe same-site ``next`` param if given, else to ``fallback``.
+
+    Lets the shared mutation views (role/tier/training) return to whichever screen
+    invoked them — e.g. the per-user admin console (issue #22) or the shift roster.
+    """
+    nxt = request.POST.get("next") or ""
+    if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
+        return redirect(nxt)
+    return fallback

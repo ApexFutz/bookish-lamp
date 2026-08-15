@@ -14,6 +14,7 @@ urlpatterns = [
     path("employees/add/", views.employee_add, name="employee_add"),
     path("employees/remove/", views.employee_remove, name="employee_remove"),
     path("employees/role/", views.role_assign, name="role_assign"),
+    path("employees/tier/", views.tier_assign, name="tier_assign"),
     path("employees/<str:shift>/", views.shift_detail, name="shift_detail"),
     # Equipment
     path("equipment/", views.equipment_index, name="equipment_index"),

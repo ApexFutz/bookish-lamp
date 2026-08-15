@@ -426,3 +426,57 @@ class DirectoryTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Alex")
         self.assertContains(resp, "Effective permissions")
+
+
+class AdminConsoleTests(TestCase):
+    """Per-user access console: change role/tier/qualifications, tier-gated + audited (#22)."""
+
+    def setUp(self):
+        self.t1 = Tier.objects.create(name="Associate", level=1)
+        self.t2 = Tier.objects.create(name="Lead", level=2)
+        self.t3 = Tier.objects.create(name="Manager", level=3)
+        self.manage_perm = Permission.objects.create(code="users.manage")
+        self.mgr_role = Role.objects.create(name="Manager")
+        self.mgr_role.baseline_permissions.set([self.manage_perm])
+        # A non-superuser manager at tier 3 with users.manage.
+        self.manager = User.objects.create_user(
+            "manager", password="pw", role=self.mgr_role, tier=self.t3
+        )
+        self.emp = User.objects.create_user("emp", first_name="Em", tier=self.t1)
+        self.client.force_login(self.manager)
+
+    def test_console_shown_for_manageable_user(self):
+        resp = self.client.get(f"/directory/{self.emp.pk}/")
+        self.assertContains(resp, "Manage access")
+
+    def test_tier_change_is_gated_and_audited(self):
+        from .models import AccessAuditLog
+
+        resp = self.client.post(
+            "/employees/tier/",
+            {"user_id": self.emp.id, "tier_id": self.t2.id, "next": f"/directory/{self.emp.pk}/"},
+        )
+        self.assertRedirects(resp, f"/directory/{self.emp.pk}/")
+        self.emp.refresh_from_db()
+        self.assertEqual(self.emp.tier, self.t2)
+        self.assertTrue(
+            AccessAuditLog.objects.filter(target=self.emp, action="tier.change").exists()
+        )
+
+    def test_cannot_set_tier_above_own(self):
+        # Manager is tier 3; attempt to set the employee to... create a higher tier.
+        t4 = Tier.objects.create(name="Director", level=4)
+        self.client.post("/employees/tier/", {"user_id": self.emp.id, "tier_id": t4.id})
+        self.emp.refresh_from_db()
+        self.assertEqual(self.emp.tier, self.t1)  # unchanged — refused (can't exceed own tier)
+
+    def test_grant_from_profile_returns_to_profile(self):
+        fork = Qualification.objects.create(name="Forklift", code="forklift")
+        resp = self.client.post(
+            "/equipment/train/",
+            {"equipment_id": fork.id, "user_id": self.emp.id, "next": f"/directory/{self.emp.pk}/"},
+        )
+        self.assertRedirects(resp, f"/directory/{self.emp.pk}/")
+        self.assertTrue(
+            UserQualification.objects.filter(user=self.emp, qualification=fork).exists()
+        )

@@ -27,7 +27,18 @@
               {% if q.grant.expires_at %}Expires {{ q.grant.expires_at|date:"Y-m-d" }}{% else %}No expiry{% endif %}
             </div>
           </div>
-          {% include "access/_status_badge.html" with status=q.status %}
+          <div class="flex items-center gap-2">
+            {% include "access/_status_badge.html" with status=q.status %}
+            {% if can_edit %}
+              <form method="post" action="{% url 'training_remove' %}">
+                {% csrf_token %}
+                <input type="hidden" name="equipment_id" value="{{ q.grant.qualification_id }}">
+                <input type="hidden" name="user_id" value="{{ person.id }}">
+                <input type="hidden" name="next" value="{{ request.path }}">
+                <button class="rounded border border-red-300 px-2 py-0.5 text-xs text-red-700 hover:bg-red-50">Revoke</button>
+              </form>
+            {% endif %}
+          </div>
         </div>
       {% empty %}
         <p class="text-sm text-slate-500">No qualifications.</p>
@@ -46,6 +57,47 @@
         <p class="text-sm text-slate-500">No permissions. (Deny-by-default.)</p>
       {% endfor %}
     </div>
+
+    {% if can_edit %}
+    <h2 class="mt-6 text-sm font-semibold uppercase tracking-wide text-slate-500 mb-2">Manage access</h2>
+    <div class="space-y-3 rounded-lg border bg-white p-4 shadow-sm">
+      <form method="post" action="{% url 'role_assign' %}" class="flex items-center gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="user_id" value="{{ person.id }}">
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <label class="w-16 text-sm text-slate-600">Role</label>
+        <select name="role_id" class="flex-1 rounded border border-slate-300 px-2 py-1 text-sm">
+          <option value="">— No role —</option>
+          {% for r in roles %}<option value="{{ r.id }}" {% if person.role_id == r.id %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+        </select>
+        <button class="rounded border border-sky-300 px-3 py-1 text-sm text-sky-700 hover:bg-sky-50">Save</button>
+      </form>
+
+      <form method="post" action="{% url 'tier_assign' %}" class="flex items-center gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="user_id" value="{{ person.id }}">
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <label class="w-16 text-sm text-slate-600">Tier</label>
+        <select name="tier_id" class="flex-1 rounded border border-slate-300 px-2 py-1 text-sm">
+          <option value="">— No tier —</option>
+          {% for t in tiers %}<option value="{{ t.id }}" {% if person.tier_id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+        </select>
+        <button class="rounded border border-sky-300 px-3 py-1 text-sm text-sky-700 hover:bg-sky-50">Save</button>
+      </form>
+
+      <form method="post" action="{% url 'training_add' %}" class="flex items-center gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="user_id" value="{{ person.id }}">
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <label class="w-16 text-sm text-slate-600">Train</label>
+        <select name="equipment_id" required class="flex-1 rounded border border-slate-300 px-2 py-1 text-sm">
+          <option value="" disabled selected>Add a qualification…</option>
+          {% for qn in grantable_quals %}<option value="{{ qn.id }}">{{ qn.name }}</option>{% endfor %}
+        </select>
+        <button class="rounded border border-sky-300 px-3 py-1 text-sm text-sky-700 hover:bg-sky-50">Grant</button>
+      </form>
+    </div>
+    {% endif %}
   </section>
 </div>
 {% endblock %}
