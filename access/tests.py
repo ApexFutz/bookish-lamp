@@ -602,3 +602,62 @@ class BootstrapAdminTests(TestCase):
         with self.assertRaises(CommandError):
             call_command("bootstrap_admin", username="root", password="123")
         self.assertFalse(User.objects.filter(username="root").exists())
+
+
+class ExpiryAlertJobTests(TestCase):
+    """Durable, monitored expiry-alert job — notifications only (issue #30)."""
+
+    def setUp(self):
+        from .models import ExpiryAlert, JobHeartbeat
+
+        self.ExpiryAlert = ExpiryAlert
+        self.JobHeartbeat = JobHeartbeat
+        manage = Permission.objects.create(code="users.manage")
+        mgr_role = Role.objects.create(name="Manager")
+        mgr_role.baseline_permissions.set([manage])
+        self.manager = User.objects.create_user(
+            "manager", password="pw", role=mgr_role, email="manager@example.com"
+        )
+        self.worker = User.objects.create_user("worker", shift=User.Shift.FIRST)
+        self.forklift = Qualification.objects.create(name="Forklift", code="forklift")
+
+    def _grant(self, expires_in_days):
+        return UserQualification.objects.create(
+            user=self.worker,
+            qualification=self.forklift,
+            expires_at=timezone.now() + timezone.timedelta(days=expires_in_days),
+        )
+
+    def _run(self):
+        from django.core.management import call_command
+
+        call_command("send_expiry_alerts")
+
+    def test_sends_alert_for_expiring_cert_and_is_idempotent(self):
+        from django.core import mail
+
+        self._grant(expires_in_days=5)
+        self._run()
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Forklift", mail.outbox[0].body)
+        self.assertEqual(self.ExpiryAlert.objects.count(), 1)
+        self._run()
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_expired_cert_triggers_expired_notice(self):
+        self._grant(expires_in_days=-1)
+        self._run()
+        self.assertTrue(self.ExpiryAlert.objects.filter(threshold_days=0).exists())
+
+    def test_records_heartbeat(self):
+        self._run()
+        hb = self.JobHeartbeat.objects.get(name="expiry_alerts")
+        self.assertEqual(hb.last_status, "ok")
+
+    def test_far_off_cert_does_not_alert(self):
+        from django.core import mail
+
+        self._grant(expires_in_days=200)
+        self._run()
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(self.ExpiryAlert.objects.count(), 0)

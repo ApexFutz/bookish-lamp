@@ -6,6 +6,8 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     AccessAuditLog,
     EmployeeTraining,
+    ExpiryAlert,
+    JobHeartbeat,
     Permission,
     Qualification,
     Role,
@@ -113,3 +115,16 @@ class AccessAuditLogAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(ExpiryAlert)
+class ExpiryAlertAdmin(admin.ModelAdmin):
+    list_display = ("user_qualification", "threshold_days", "sent_at")
+    list_filter = ("threshold_days",)
+
+
+@admin.register(JobHeartbeat)
+class JobHeartbeatAdmin(admin.ModelAdmin):
+    """Monitoring: last run of each scheduled job. A stale last_run_at means it stopped."""
+
+    list_display = ("name", "last_status", "last_run_at", "detail")

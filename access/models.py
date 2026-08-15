@@ -297,3 +297,49 @@ class AccessAuditLog(models.Model):
 
     def __str__(self) -> str:
         return f"{self.created_at:%Y-%m-%d %H:%M} {self.action} {self.target}"
+
+
+class ExpiryAlert(models.Model):
+    """Idempotency ledger for certification-expiry notifications (issue #30).
+
+    One row per (qualification grant, threshold) means each reminder window is sent exactly
+    once, so the job can run daily / be retried without spamming. ``threshold_days`` is the
+    warning window (e.g. 30/7/1); 0 means the "already expired" notice.
+    """
+
+    user_qualification = models.ForeignKey(
+        UserQualification, on_delete=models.CASCADE, related_name="expiry_alerts"
+    )
+    threshold_days = models.PositiveIntegerField()
+    sent_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user_qualification", "threshold_days"], name="unique_expiry_alert"
+            )
+        ]
+        ordering = ["-sent_at"]
+
+    def __str__(self) -> str:
+        return f"{self.user_qualification} @ {self.threshold_days}d"
+
+
+class JobHeartbeat(models.Model):
+    """Last-run record for scheduled jobs so a stall is detectable (issue #30 monitoring)."""
+
+    name = models.CharField(max_length=100, unique=True)
+    last_run_at = models.DateTimeField()
+    last_status = models.CharField(max_length=20, default="ok")
+    detail = models.CharField(max_length=255, blank=True, default="")
+
+    @classmethod
+    def beat(cls, name, status="ok", detail=""):
+        obj, _ = cls.objects.update_or_create(
+            name=name,
+            defaults={"last_run_at": timezone.now(), "last_status": status, "detail": detail},
+        )
+        return obj
+
+    def __str__(self) -> str:
+        return f"{self.name}: {self.last_status} @ {self.last_run_at:%Y-%m-%d %H:%M}"
