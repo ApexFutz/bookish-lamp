@@ -1,0 +1,20 @@
+Copyright (c) 2026 <CLIENT LEGAL ENTITY>. All rights reserved.
+
+This software (bookish-lamp) and its source code were developed for and are owned by
+<CLIENT LEGAL ENTITY> ("the Client"). Upon delivery, all rights, title, and interest in the
+software transfer to the Client.
+
+This is proprietary software. It may not be copied, distributed, sublicensed, or used outside
+the Client's organization except as permitted in writing by the Client.
+
+NOTE TO THE PARTIES: This file is a template. Replace "<CLIENT LEGAL ENTITY>" with the client's
+legal name and, if a separate development/ownership agreement exists between the developer and
+the Client, that agreement governs and should be referenced or substituted here. If instead the
+Client wishes to release this under an open-source license (e.g. MIT), replace this file with
+that license text.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES, OR OTHER LIABILITY ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+OR OTHER DEALINGS IN THE SOFTWARE.
