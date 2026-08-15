@@ -571,3 +571,32 @@ class SkillsMatrixTests(TestCase):
         usernames = [r["user"].username for r in resp.context["rows"]]
         self.assertIn("sam", usernames)
         self.assertNotIn("alex", usernames)
+
+
+class BootstrapAdminTests(TestCase):
+    """First-admin bootstrap command (issue #25)."""
+
+    def test_creates_first_admin_when_none_exists(self):
+        from django.core.management import call_command
+
+        call_command("bootstrap_admin", username="root", password="Str0ng!Passphrase1", email="r@example.com")
+        u = User.objects.get(username="root")
+        self.assertTrue(u.is_superuser and u.is_staff)
+        self.assertTrue(u.check_password("Str0ng!Passphrase1"))
+
+    def test_disabled_once_an_admin_exists(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        User.objects.create_superuser("existing", password="Str0ng!Passphrase1")
+        with self.assertRaises(CommandError):
+            call_command("bootstrap_admin", username="root", password="Str0ng!Passphrase1")
+        self.assertFalse(User.objects.filter(username="root").exists())
+
+    def test_rejects_weak_password(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError):
+            call_command("bootstrap_admin", username="root", password="123")
+        self.assertFalse(User.objects.filter(username="root").exists())
